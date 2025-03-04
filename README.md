@@ -15,12 +15,6 @@ If you require assistance in tailoring these solutions to your specific needs, o
 ## Disclaimer
 This repository is maintained by the LaunchDarkly Professional Services team, but the tools provided here are not officially supported by LaunchDarkly. Use them at your own discretion!
 
-## Contributing
-We welcome contributions! Please feel free to submit a PR or open an issue to suggest improvements or new features.
-
-## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
 ## Automation Scripts
 | Name  | Description | Author |
 |-------|------------|-------------|
@@ -48,3 +42,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 | Item 1 | Description of item 1 | Author 1 |
 | Item 2 | Description of item 2 | Author 2 |
 | Item 3 | Description of item 3 | Author 3 |
+
+## Contributing & License
+We welcome contributions! Please feel free to submit a PR or open an issue to suggest improvements or new features.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
