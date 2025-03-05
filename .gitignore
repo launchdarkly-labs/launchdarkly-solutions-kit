@@ -1,0 +1,54 @@
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.env
+.venv
+*.log
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Node.js (JavaScript/TypeScript)
+node_modules/
+dist/
+.turbo/
+.next/
+.angular/
+.svelte-kit/
+.parcel-cache/
+.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.tox/
+venv/
+
+# Java
+target/
+*.class
+*.jar
+*.war
+
+# Golang
+bin/
+pkg/
+*.exe
+*.test
+.go-build/
+
+# Rust
+target/
+Cargo.lock
+
+# Dotnet
+bin/
+obj/
+
+# Terraform
+.terraform/
+terraform.tfstate*
