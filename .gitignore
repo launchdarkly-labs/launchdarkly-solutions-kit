@@ -9,6 +9,8 @@ Thumbs.db
 npm-debug.log
 yarn-debug.log
 yarn-error.log
+cache/
+data/
 
 # Node.js (JavaScript/TypeScript)
 node_modules/
