@@ -41,8 +41,9 @@ This repository is maintained by the LaunchDarkly Professional Services team, bu
 ## Report Generators
 | Name  | Description | 
 |-------|------------|
-| Flag Cleanup Report | A tool that complements LaunchDarkly's [Launch Insights](https://docs.launchdarkly.com/home/getting-started/launch-insights) by providing bulk analysis and offline reporting capabilitie |
-| Item 2 | Description of item 2 |
+| Flag Cleanup Report Generator| A tool that complements LaunchDarkly's [Launch Insights](https://docs.launchdarkly.com/home/getting-started/launch-insights) by providing bulk analysis and offline reporting capabilitie |
+| Custom Role Report Generator | A tool for analyzing LaunchDarkly custom role policies to identify similarities, track role assignments, and visualize team access patterns. 
+ |
 | Item 3 | Description of item 3 |
 
 ## Examples & Best Practices

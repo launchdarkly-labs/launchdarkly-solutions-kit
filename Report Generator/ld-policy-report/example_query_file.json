@@ -1,0 +1,12 @@
+[
+    {
+      "notResources": [
+        "proj/*"
+      ],
+      "actions": [
+        "viewProject"
+      ],
+      "effect": "allow"
+    }
+
+  ]
