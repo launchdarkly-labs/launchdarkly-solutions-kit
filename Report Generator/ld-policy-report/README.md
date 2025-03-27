@@ -71,6 +71,28 @@ Each role is represented by a card showing:
 - Internet connection for downloading dependencies
 - LaunchDarkly account with API access
 
+### Bundled Sentence Transformer model
+
+The tool comes bundled with the `all-MiniLM-L6-v2` model in the `sentence_transformers` directory. This model is:
+- License: Apache 2.0
+- Source: [Hugging Face - all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+- Size: ~90MB
+- Performance: Fast and efficient for policy similarity analysis
+
+
+#### Downloading Transformer Models
+
+The tool includes a utility script for downloading transformer models from Hugging Face:
+
+```bash
+python download_transformer.py --model all-MiniLM-L6-v2 --output-path ./my-models
+```
+
+Options:
+- `--model`: Model to download (default: all-MiniLM-L6-v2)
+- `--output-path`: Path where the model should be downloaded (required)
+- `--debug`: Enable debug logging
+
 ### Using pip
 
 The simplest way to install the package is via pip:
@@ -139,6 +161,7 @@ The tool creates several directories for its operation:
 - `cache/`: Stores cached API responses
 - `embeddings/`: Stores persistent embeddings
 - `reports/`: Stores generated reports
+- `sentence_transformers/`: Contains the bundled all-MiniLM-L6-v2 model
 
 These directories are created automatically if they don't exist.
 
@@ -162,8 +185,7 @@ Optional arguments:
   --persist BOOL          Use persistent storage for embeddings (default: True)
   --embeddings DIR        Path to store persistent embeddings (default: ./embeddings)
   --collection NAME       Name of the ChromaDB collection (default: launchdarkly_policies)
-  --model MODEL           Embedding model to use (default: all-MiniLM-L6-v2)
-                          choices: [all-MiniLM-L6-v2, all-mpnet-base-v2]
+  --model-path PATH      Path to local transformer model, loads from ./sentence_transformers by default.
   --min-similarity FLOAT  Minimum similarity threshold (default: 0.5)
   --max-results INT       Maximum number of similar policies to return (default: 3)
   --validate-actions      Validate policy actions against official LaunchDarkly resource actions
@@ -175,10 +197,16 @@ Optional arguments:
 
 ### Examples
 
-Run generator using cached local data:
+Run generator using cached local data (uses bundled model by default):
 ```bash
 ld-policy-report
 ```
+
+Use a different local transformer model:
+```bash
+ld-policy-report --model-path ./my-models/all-MiniLM-L6-v2
+```
+
 
 Force refresh local cache and run:
 ```bash
@@ -188,11 +216,6 @@ ld-policy-report --force-refresh
 Return 5 similar policies with a higher similarity threshold:
 ```bash
 ld-policy-report --max-results 5 --min-similarity 0.7
-```
-
-Use a different embedding model:
-```bash
-ld-policy-report --model all-mpnet-base-v2
 ```
 
 Validate policy actions against official LaunchDarkly resource actions:
@@ -225,6 +248,7 @@ Run with debug logging for troubleshooting:
 ld-policy-report --debug
 ```
 
+
 ### Using Query Files
 
 You can use a JSON file to be used to look up policies in the collection.
@@ -243,8 +267,7 @@ Example `example_query_file.json`:
       ],
       "effect": "allow"
     }
-
-  ]
+]
 ```
 
 To use this query file:
@@ -307,8 +330,10 @@ Each key in the JSON object represents a resource type, and its value is an arra
 
 ### Embedding Generation
 The tool uses sentence transformers to convert policy statements into vector embeddings:
-- Default model: `all-MiniLM-L6-v2` (faster, smaller)
-- Alternative model: `all-mpnet-base-v2` (more accurate, larger)
+- Default model: Bundled `all-MiniLM-L6-v2` (faster, smaller)
+- Alternative models:
+  - `all-mpnet-base-v2` (more accurate, larger)
+  - Custom local models via `--model-path`
 
 The embedding process:
 1. Converts JSON policy statements to human-readable text
@@ -395,3 +420,7 @@ If you encounter issues not covered here:
 
 ## License
 Apache 2.0
+
+### Model Licenses
+- all-MiniLM-L6-v2: Apache 2.0 - [Hugging Face Card](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+- all-mpnet-base-v2: Apache 2.0 - [Hugging Face Card](https://huggingface.co/sentence-transformers/all-mpnet-base-v2)
