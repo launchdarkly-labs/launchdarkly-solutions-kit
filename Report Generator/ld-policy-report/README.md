@@ -68,30 +68,37 @@ Each role is represented by a card showing:
 
 - Python 3.7 or higher
 - pip (Python package installer)
-- Internet connection for downloading dependencies
-- LaunchDarkly account with API access
+- LaunchDarkly account with API access (READ ONLY)
+- Sentence transformers (bundled)
 
 ### Bundled Sentence Transformer model
 
-The tool comes bundled with the `all-MiniLM-L6-v2` model in the `sentence_transformers` directory. This model is:
+The tool comes bundled with the `all-MiniLM-L6-v2` model and explicitly loads the model (offline-mode) from the `sentence_transformers` directory. 
+
+This model is:
 - License: Apache 2.0
 - Source: [Hugging Face - all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
 - Size: ~90MB
-- Performance: Fast and efficient for policy similarity analysis
 
-
-#### Downloading Transformer Models
+#### Downloading Alternative Models
 
 The tool includes a utility script for downloading transformer models from Hugging Face:
 
+For example
 ```bash
-python download_transformer.py --model all-MiniLM-L6-v2 --output-path ./my-models
+python ./src/download_transformer.py --model all-MiniLM-L6-v2 --output-path ./my-models
 ```
 
 Options:
 - `--model`: Model to download (default: all-MiniLM-L6-v2)
 - `--output-path`: Path where the model should be downloaded (required)
 - `--debug`: Enable debug logging
+
+To use a different local transformer model:
+```bash
+ld-policy-report --model-path ./my-models/all-MiniLM-L6-v2
+```
+
 
 ### Using pip
 
@@ -161,7 +168,7 @@ The tool creates several directories for its operation:
 - `cache/`: Stores cached API responses
 - `embeddings/`: Stores persistent embeddings
 - `reports/`: Stores generated reports
-- `sentence_transformers/`: Contains the bundled all-MiniLM-L6-v2 model
+
 
 These directories are created automatically if they don't exist.
 
@@ -185,7 +192,7 @@ Optional arguments:
   --persist BOOL          Use persistent storage for embeddings (default: True)
   --embeddings DIR        Path to store persistent embeddings (default: ./embeddings)
   --collection NAME       Name of the ChromaDB collection (default: launchdarkly_policies)
-  --model-path PATH      Path to local transformer model, loads from ./sentence_transformers by default.
+  --model-path PATH      Path to local transformer model (default: ./sentence_transformers/all-MiniLM-L6-v2)
   --min-similarity FLOAT  Minimum similarity threshold (default: 0.5)
   --max-results INT       Maximum number of similar policies to return (default: 3)
   --validate-actions      Validate policy actions against official LaunchDarkly resource actions
@@ -333,7 +340,7 @@ The tool uses sentence transformers to convert policy statements into vector emb
 - Default model: Bundled `all-MiniLM-L6-v2` (faster, smaller)
 - Alternative models:
   - `all-mpnet-base-v2` (more accurate, larger)
-  - Custom local models via `--model-path`
+  - Download using utility `download_transformer.py` and use custom local models via `--model-path`
 
 The embedding process:
 1. Converts JSON policy statements to human-readable text
