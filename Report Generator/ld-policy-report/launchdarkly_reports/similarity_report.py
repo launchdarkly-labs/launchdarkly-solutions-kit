@@ -749,6 +749,8 @@ class SimilarityReport:
          # Add invalid actions section after summary statistics if available
         if self.invalid_actions:
             invalid_actions_html = self._generate_invalid_actions_section()
+        else:
+            invalid_actions_html = ""
             
                
         # Replace placeholders in template
