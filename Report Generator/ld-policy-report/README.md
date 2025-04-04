@@ -70,13 +70,36 @@ Each role is represented by a card showing:
 - pip (Python package installer)
 - Internet connection for downloading dependencies
 - LaunchDarkly account with API access
+#### Downloading Alternative Models
+The tool includes a utility script for downloading transformer models from Hugging Face:
+For example
+```bash
+% python ./src/download_transformer.py --model sentence_transformers/all-MiniLM-L6-v2 --output-path ./my-models
+```
+or download `all-mpnet-base-v2` (more accurate, larger) transformer
+```
+ % python3 src/download_transformer.py --model all-mpnet-base-v2 --output-path sentence_transformers/all-mpnet-base-v2
+```
+and use
+```
+% ld-policy-report --model-path sentence_transformers/all-mpnet-base-v2 --min-similarity 0.9 
+```
+
+Options:
+- `--model`: Model to download (default: all-MiniLM-L6-v2) 
+- `--output-path`: Path where the model should be downloaded (required)
+- `--debug`: Enable debug logging
+To use a different local transformer model:
+```bash
+% ld-policy-report --model-path ./my-models/all-MiniLM-L6-v2
+```
 
 ### Using pip
 
 The simplest way to install the package is via pip:
 
 ```bash
-pip install launchdarkly-policy-report
+% pip install launchdarkly-policy-report
 ```
 
 This will install the package and all its dependencies globally.
@@ -108,13 +131,13 @@ The setup script will:
 After running the setup script, activate the virtual environment:
 
 ```bash
-source venv/bin/activate
+% source venv/bin/activate
 ```
 
 To deactivate when finished:
 
 ```bash
-deactivate
+% deactivate
 ```
 
 ## Configuration
@@ -124,7 +147,7 @@ deactivate
 1. Copy the `.env.example` to `.env`
 2. Set the `LAUNCHDARKLY_API_KEY` with a READ only access token
 
-```
+```bash
 LAUNCHDARKLY_API_KEY=api-xxxx
 ```
 
@@ -147,7 +170,7 @@ These directories are created automatically if they don't exist.
 Run the policy report generator:
 
 ```bash
-ld-policy-report [options]
+% ld-policy-report [options]
 ```
 
 ### Command Line Options
@@ -162,8 +185,7 @@ Optional arguments:
   --persist BOOL          Use persistent storage for embeddings (default: True)
   --embeddings DIR        Path to store persistent embeddings (default: ./embeddings)
   --collection NAME       Name of the ChromaDB collection (default: launchdarkly_policies)
-  --model MODEL           Embedding model to use (default: all-MiniLM-L6-v2)
-                          choices: [all-MiniLM-L6-v2, all-mpnet-base-v2]
+  --model-path PATH      Path to local transformer model (default: ./sentence_transformers/all-MiniLM-L6-v2)
   --min-similarity FLOAT  Minimum similarity threshold (default: 0.5)
   --max-results INT       Maximum number of similar policies to return (default: 3)
   --validate-actions      Validate policy actions against official LaunchDarkly resource actions
@@ -177,52 +199,52 @@ Optional arguments:
 
 Run generator using cached local data:
 ```bash
-ld-policy-report
+% ld-policy-report
 ```
 
+Use a different local transformer model:
+```bash
+% ld-policy-report --model-path ./my-models/all-MiniLM-L6-v2
+```
 Force refresh local cache and run:
 ```bash
-ld-policy-report --force-refresh
+% ld-policy-report --force-refresh
 ```
 
 Return 5 similar policies with a higher similarity threshold:
 ```bash
-ld-policy-report --max-results 5 --min-similarity 0.7
-```
+% ld-policy-report --max-results 5 --min-similarity 0.7
 
-Use a different embedding model:
-```bash
-ld-policy-report --model all-mpnet-base-v2
 ```
 
 Validate policy actions against official LaunchDarkly resource actions:
 ```bash
-ld-policy-report --validate-actions
+% ld-policy-report --validate-actions
 ```
 
 Validate policy actions using a custom resource actions file:
 ```bash
-ld-policy-report --validate-actions --resource-actions-file ./custom_resource_actions.json
+% ld-policy-report --validate-actions --resource-actions-file ./custom_resource_actions.json
 ```
 
 Run with parameters from a query file:
 ```bash
-ld-policy-report --query-file ./sample_query.json
+% ld-policy-report --query-file ./sample_query.json
 ```
 
 Specify custom output locations:
 ```bash
-ld-policy-report --report-output ./my-reports/policy-report.html --policies-output ./my-reports/policies.json
+% ld-policy-report --report-output ./my-reports/policy-report.html --policies-output ./my-reports/policies.json
 ```
 
 Use a shorter cache TTL for more frequent updates:
 ```bash
-ld-policy-report --cache-ttl 6
+% ld-policy-report --cache-ttl 6
 ```
 
 Run with debug logging for troubleshooting:
 ```bash
-ld-policy-report --debug
+% ld-policy-report --debug
 ```
 
 ### Using Query Files
@@ -250,7 +272,7 @@ Example `example_query_file.json`:
 To use this query file:
 
 ```bash
-ld-policy-report --query-file ./example_query_file.json
+% ld-policy-report --query-file ./example_query_file.json
 ```
 
 
@@ -307,8 +329,10 @@ Each key in the JSON object represents a resource type, and its value is an arra
 
 ### Embedding Generation
 The tool uses sentence transformers to convert policy statements into vector embeddings:
-- Default model: `all-MiniLM-L6-v2` (faster, smaller)
-- Alternative model: `all-mpnet-base-v2` (more accurate, larger)
+- Default model: Bundled `all-MiniLM-L6-v2` (faster, smaller)
+- Alternative models:
+  - `all-mpnet-base-v2` (more accurate, larger)
+  - Download using utility `download_transformer.py` and use custom local models via `--model-path`
 
 The embedding process:
 1. Converts JSON policy statements to human-readable text

@@ -41,16 +41,27 @@ class NoProgressEmbeddingFunction(embedding_functions.SentenceTransformerEmbeddi
     
     Attributes:
         model: The sentence transformer model used for encoding
+        path: The path to the local sentence transformer model to use
     """
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str = None, path: str = None):
         """
         Initialize the embedding function with a specific model.
         
         Args:
-            model_name (str): Name of the sentence transformer model to use
+            model_name (str): Name of the sentence transformer model to use from Hugging Face
+            path (str): Path to the local sentence transformer model to use
         """
-        super().__init__(model_name=model_name)
-        self.model = SentenceTransformer(model_name)
+        self.logger = logging.getLogger(__name__)
+        if path:
+            self.model_name = path
+            self.logger.info(f"Loading pretrained SentenceTransformer model from local path: {path}")
+        elif model_name:
+            self.model_name = model_name
+            self.logger.info(f"Loading pretrained SentenceTransformer model from Hugging Face: {model_name}")
+        else:
+            raise ValueError("Either model_name or path must be provided.")
+        super().__init__(model_name=self.model_name)
+        self.model = SentenceTransformer(self.model_name)
         
     def __call__(self, texts):
         """
@@ -62,6 +73,7 @@ class NoProgressEmbeddingFunction(embedding_functions.SentenceTransformerEmbeddi
         Returns:
             List of embeddings for the input texts
         """
+        self.logger.debug(f"Generating embeddings for {len(texts)} texts")
         return self.model.encode(texts, show_progress_bar=False, batch_size=32)
 
 class LaunchDarklyPolicyReport:
@@ -91,9 +103,6 @@ class LaunchDarklyPolicyReport:
         self.api_key = self.load_environment()
         
         # Initialize embedding function with specified model
-        self.embedding_func = NoProgressEmbeddingFunction(
-            model_name=self.args.model
-        )
 
         # Configure logging based on debug flag
         log_level = logging.DEBUG if self.args.debug else logging.INFO
@@ -102,6 +111,9 @@ class LaunchDarklyPolicyReport:
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         self.logger = logging.getLogger(__name__)
+        self.embedding_func = NoProgressEmbeddingFunction(
+            path=self.args.model_path
+        )
         
     def parse_args(self) -> argparse.Namespace:
         """
@@ -122,7 +134,8 @@ class LaunchDarklyPolicyReport:
             --persist: Use persistent storage for embeddings
             --embeddings: Path to store persistent embeddings
             --collection: Name of the ChromaDB collection
-            --model: Embedding model to use
+            # --model: Embedding model to use from Hugging Face
+            --model-path: Path to local transformer model
             --min-similarity: Minimum similarity threshold
             --max-results: Maximum number of similar policies to return
             --validate-actions: Validate policy actions against official LaunchDarkly resource actions
@@ -151,9 +164,11 @@ class LaunchDarklyPolicyReport:
                           help="Path to store persistent embeddings (default: ./embeddings)")
         parser.add_argument("--collection", default="launchdarkly_policies",
                           help="Name of the ChromaDB collection (default: launchdarkly_policies)")
-        parser.add_argument("--model", default="all-MiniLM-L6-v2",
-                          choices=["all-MiniLM-L6-v2", "all-mpnet-base-v2"],
-                          help="Embedding model to use (default: all-MiniLM-L6-v2)")
+        # parser.add_argument("--model", default="all-MiniLM-L6-v2",
+        #                   choices=["all-MiniLM-L6-v2", "all-mpnet-base-v2"],
+        #                   help="Embedding model to use from Hugging Face (default: all-MiniLM-L6-v2)")
+        parser.add_argument("--model-path", default="./sentence_transformers/all-MiniLM-L6-v2",
+                          help="Path to local transformer model")
         parser.add_argument("--min-similarity", type=float, default=0.5,
                           help="Minimum similarity threshold (default: 0.5)")
         parser.add_argument("--max-results", type=int, default=3,
