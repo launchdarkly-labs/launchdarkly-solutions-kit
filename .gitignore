@@ -13,6 +13,7 @@ yarn-debug.log
 yarn-error.log
 cache/
 data/
+report.log.*
 
 # Node.js (JavaScript/TypeScript)
 node_modules/

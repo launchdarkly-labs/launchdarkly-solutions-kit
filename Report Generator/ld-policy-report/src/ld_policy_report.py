@@ -24,12 +24,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 from chromadb.utils import embedding_functions
 import logging
+from logging.handlers import RotatingFileHandler
 from typing import Dict, List, Optional
 from sentence_transformers import SentenceTransformer
 
 from launchdarkly_api_client import LaunchDarklyAPI
 from launchdarkly_policy_similarity import LaunchDarklyPolicySimilarityService, validate_policies
 from launchdarkly_reports import SimilarityReport
+from policy_linter import PolicyLinter
 
 class NoProgressEmbeddingFunction(embedding_functions.SentenceTransformerEmbeddingFunction):
     """
@@ -91,30 +93,63 @@ class LaunchDarklyPolicyReport:
     """
     
     def __init__(self):
-        """
-        Initialize the LaunchDarkly Policy Report generator.
-        
-        Sets up command line arguments, loads environment variables,
-        initializes the embedding function, and configures logging.
-        """
+       
         self.args = self.parse_args()
+       
+              
+        self.log_level = logging.DEBUG if self.args.debug else logging.INFO
+        self.log_file = "report.log" 
+        self.loggers = self.setup_logging(log_level=self.log_level, log_file=self.log_file)
+        self.logger= self.loggers.getLogger('main')
         
-        # Load API key from environment variables
         self.api_key = self.load_environment()
-        
-        # Initialize embedding function with specified model
 
-        # Configure logging based on debug flag
-        log_level = logging.DEBUG if self.args.debug else logging.INFO
-        logging.basicConfig(
-            level=log_level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
         self.embedding_func = NoProgressEmbeddingFunction(
             path=self.args.model_path
         )
+
+
+
+    
+    def setup_logging(self, log_level=logging.INFO, log_file=None):
+        """Configure logging for the application"""
+        log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         
+        root_logger = logging.getLogger()
+        root_logger.setLevel(log_level)
+        
+        # Clear existing handlers to avoid duplicates
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+            
+        # Add console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter(log_format))
+        root_logger.addHandler(console_handler)
+        
+        
+        file_handler = RotatingFileHandler(
+            filename=self.log_file,
+            maxBytes=2*1024*1024,  # 2mb
+            backupCount=3,
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(logging.Formatter(log_format))
+        root_logger.addHandler(file_handler)
+        
+        # Configure all related loggers
+        loggers = [
+            logging.getLogger('main'),
+            logging.getLogger('policy_linter'),
+            logging.getLogger('api_client')
+        ]
+        
+        for logger in loggers:
+            logger.setLevel(log_level)
+        
+        # Return logger for main module
+        return logging
+    
     def parse_args(self) -> argparse.Namespace:
         """
         Parse command line arguments.
@@ -134,7 +169,6 @@ class LaunchDarklyPolicyReport:
             --persist: Use persistent storage for embeddings
             --embeddings: Path to store persistent embeddings
             --collection: Name of the ChromaDB collection
-            # --model: Embedding model to use from Hugging Face
             --model-path: Path to local transformer model
             --min-similarity: Minimum similarity threshold
             --max-results: Maximum number of similar policies to return
@@ -164,9 +198,6 @@ class LaunchDarklyPolicyReport:
                           help="Path to store persistent embeddings (default: ./embeddings)")
         parser.add_argument("--collection", default="launchdarkly_policies",
                           help="Name of the ChromaDB collection (default: launchdarkly_policies)")
-        # parser.add_argument("--model", default="all-MiniLM-L6-v2",
-        #                   choices=["all-MiniLM-L6-v2", "all-mpnet-base-v2"],
-        #                   help="Embedding model to use from Hugging Face (default: all-MiniLM-L6-v2)")
         parser.add_argument("--model-path", default="./sentence_transformers/all-MiniLM-L6-v2",
                           help="Path to local transformer model")
         parser.add_argument("--min-similarity", type=float, default=0.5,
@@ -176,7 +207,8 @@ class LaunchDarklyPolicyReport:
         parser.add_argument("--validate-actions", action="store_true",
                           help="Validate policy actions against official LaunchDarkly resource actions")
         parser.add_argument("--resource-actions-file", 
-                          help="Path to JSON file containing LaunchDarkly resource actions")
+                            help="Path to JSON file containing LaunchDarkly resource actions",
+                            default="./config/resource_actions.json" )
         parser.add_argument("--invalid-actions-output", default="./reports/invalid_actions.json",
                           help="Output file for invalid actions (default: ./reports/invalid_actions.json)")
         parser.add_argument("--debug", action="store_true",
@@ -267,8 +299,12 @@ class LaunchDarklyPolicyReport:
             # Validate policy actions if requested
             
             self.logger.info("Validating policy actions...")
-            invalid_actions = validate_policies(data, self.args.resource_actions_file)
+            # invalid_actions = validate_policies(data, self.args.resource_actions_file)
+            policy_linter = PolicyLinter(logger=self.loggers.getLogger('policy_linter'))
+            resource_actions = json.load(open(self.args.resource_actions_file))
+            invalid_actions= policy_linter.validate(data.get('roles', []), resource_actions)
             
+
             if invalid_actions:
                 self.logger.info(f"Found {len(invalid_actions)} roles with invalid actions")
                 

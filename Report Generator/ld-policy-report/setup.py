@@ -25,6 +25,7 @@ setup(
         'launchdarkly_api_client',
         'launchdarkly_policy_similarity',
         'launchdarkly_reports',
+        'policy_linter',
         'src'
     ],
     package_data={
@@ -35,7 +36,8 @@ setup(
         'python-dotenv',
         'tqdm',
         'chromadb',
-        'sentence-transformers'
+        'sentence-transformers',
+        "jsonpatch>=1.32",
     ],
     extras_require={
         "dev": [
@@ -43,6 +45,7 @@ setup(
             "pytest-cov>=4.1.0",
             "black>=23.0.0",
             "flake8>=6.0.0",
+            
         ],
     },
     entry_points={

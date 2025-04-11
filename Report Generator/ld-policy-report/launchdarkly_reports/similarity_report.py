@@ -38,6 +38,8 @@ class SimilarityReport:
         self.invalid_actions = invalid_actions
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"SimilarityReport() output_file: {self.output_file}")
+        self.logger.debug(f"SimilarityReport() invalid_actions: {invalid_actions}")
+        self.logger.debug(f"SimilarityReport() policy_data: {policy_data}")
             
     def generate_report(self) -> None:
         """
@@ -523,6 +525,9 @@ class SimilarityReport:
         Returns:
             str: HTML for the similarity graph section
         """
+
+        self.logger.debug(f"_generate_similarity_graph_html() start.")
+
         similarity_threshold = self.min_similarity
         graph_data = self._generate_similarity_graph_data()
         
@@ -615,7 +620,7 @@ class SimilarityReport:
                 </table>
             </div>
             '''
-        
+        self.logger.debug(f"_generate_similarity_graph_html() end.")
         return f'''
         <div class="similarity-graph-container">
          
@@ -694,7 +699,7 @@ class SimilarityReport:
 
     def _generate_html_report(self) -> str:
         """Generate complete HTML page for policy visualization."""
-        
+        self.logger.debug(f"_generate_html_report() start.")
         # Base HTML template with styles
         html_template = r'''<!DOCTYPE html>
                             <html lang="en">
@@ -752,6 +757,10 @@ class SimilarityReport:
         else:
             invalid_actions_html = ""
                
+        self.logger.debug(f"_generate_html_report() account_policy_summary: {account_policy_summary}")
+        self.logger.debug(f"_generate_html_report() role_cards_html: {role_cards_html}")
+        self.logger.debug(f"_generate_html_report() invalid_actions_html: {invalid_actions_html}")
+
         # Replace placeholders in template
         html_content = html_template.format(
             fetch_date=self.ldc_cache_data.get("fetch_date", "Unknown Date"),
@@ -760,13 +769,15 @@ class SimilarityReport:
             invalid_actions_html=invalid_actions_html
         )
         
-     
+        self.logger.debug(f"_generate_html_report() end.")
+
         return html_content
     
 
     def _generate_summary_statistics(self) -> str:
         """Generate HTML for the account policy summary."""
         self.logger.debug(f"_generate_summary_statistics() start")
+
         total_policies = self.ldc_cache_data['total_roles']
         total_assigned_teams = self.ldc_cache_data['total_assigned_teams']
         total_assigned_members = self.ldc_cache_data['total_assigned_members']
@@ -894,6 +905,7 @@ class SimilarityReport:
     
     def _generate_teams_project_table(self) -> str:
         """Generate HTML table for teams with project access using div layout."""
+        self.logger.debug(f"_generate_teams_project_table() start.")
         team_project_list = self.ldc_cache_data.get('team_project_list', {})
         
         table_rows = []
@@ -937,7 +949,7 @@ class SimilarityReport:
                     </div>
                 </div>
             ''')
-        
+        self.logger.debug(f"_generate_teams_project_table() end.")
         return f'''
             <div class="teams-project-table-content">
                 <div class="table-header">
@@ -1004,14 +1016,26 @@ class SimilarityReport:
         return html_pill
     
     def _create_invalid_action_roles(self) -> str:
+        self.logger.debug(f"_create_invalid_action_roles() start.")
+        self.logger.debug(f"_create_invalid_action_roles() invalid_actions={self.invalid_actions}")
+
         html_roles = ""
 
-        for role_key, actions in self.invalid_actions.items():
+        for role_key, policies in self.invalid_actions.items():
+            actions_data=""
+            actions=[]
+            for policy in policies:
+                self.logger.debug(f"policy: {policy}")
+                # Create a data attribute with all actions for filtering
+                actions = policy.get("actions")
+                actions_data = actions_data.join(actions).lower()
+                
+            
+            self.logger.debug(f"role_key [{role_key}] actions [{actions_data}]")
+
             role_info = self._getRoleInfo(role_key)
             role_name = role_info.get('name', role_key)
             
-            # Create a data attribute with all actions for filtering
-            actions_data = " ".join(actions).lower()
             
             html_roles += f"""
             <div class="invalid-action-item" data-role-name="{role_name.lower()}" data-actions="{actions_data}">
@@ -1042,6 +1066,7 @@ class SimilarityReport:
         Note:
             If the invalid_actions dictionary is empty, an empty string is returned.
         """
+        self.logger.debug(f"_generate_invalid_actions_section() start.")
         if not self.invalid_actions:
             return ""
         
@@ -1073,7 +1098,7 @@ class SimilarityReport:
             </div>
         </div>
         """
-       
+        self.logger.debug(f"_generate_invalid_actions_section() end.")
         return html_template.format(invalid_action_roles_html=self._create_invalid_action_roles())
         
 
