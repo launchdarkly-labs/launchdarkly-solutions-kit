@@ -1021,15 +1021,11 @@ class SimilarityReport:
 
         html_roles = ""
 
-        for role_key, policies in self.invalid_actions.items():
-            actions_data=""
-            actions=[]
-            for policy in policies:
-                self.logger.debug(f"policy: {policy}")
-                # Create a data attribute with all actions for filtering
-                actions = policy.get("actions")
-                actions_data = actions_data.join(actions).lower()
-                
+        for role_key, actions in self.invalid_actions.items():
+        
+            
+            actions_data = " ".join(actions).lower()
+            
             
             self.logger.debug(f"role_key [{role_key}] actions [{actions_data}]")
 

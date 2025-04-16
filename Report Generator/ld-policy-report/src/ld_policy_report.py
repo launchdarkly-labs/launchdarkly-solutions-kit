@@ -238,6 +238,29 @@ class LaunchDarklyPolicyReport:
                 "or set it as an environment variable."
             )
         return api_key
+    
+    def get_invalid_actions(self, invalid_policies: Dict) -> Dict:
+        
+        invalid_actions = None
+        for key  in invalid_policies.keys():
+            policy_invalid_actions = []
+            for statement in invalid_policies.get(key):
+                statement_actions = statement['actions']
+    
+                # Add all actions from this statement to the policy_invalid_actions list
+                policy_invalid_actions.extend(statement_actions)
+            
+                # Initialize invalid_actions as a dictionary if it's None
+                if invalid_actions is None:
+                    invalid_actions = {}
+                    
+            # Ensure policy_invalid_actions contains only unique actions and sort them alphabetically
+            policy_invalid_actions = sorted(list(set(policy_invalid_actions)))
+            invalid_actions[key] = policy_invalid_actions
+        return invalid_actions
+
+
+
 
     def run(self) -> int:
         """
@@ -295,6 +318,7 @@ class LaunchDarklyPolicyReport:
                 self.logger.error("Failed to fetch custom roles")
                 return 1
             
+            invalid_policies=None
             invalid_actions = None  
             # Validate policy actions if requested
             
@@ -302,15 +326,16 @@ class LaunchDarklyPolicyReport:
             # invalid_actions = validate_policies(data, self.args.resource_actions_file)
             policy_linter = PolicyLinter(logger=self.loggers.getLogger('policy_linter'))
             resource_actions = json.load(open(self.args.resource_actions_file))
-            invalid_actions= policy_linter.validate(data.get('roles', []), resource_actions)
+            invalid_policies= policy_linter.validate(data.get('roles', []), resource_actions)
             
 
-            if invalid_actions:
-                self.logger.info(f"Found {len(invalid_actions)} roles with invalid actions")
+            if invalid_policies:
+                self.logger.info(f"Found {len(invalid_policies)} roles with invalid actions")
                 
                 # Create directory for output file if it doesn't exist
                 os.makedirs(os.path.dirname(self.args.invalid_actions_output), exist_ok=True)
-                
+             
+                invalid_actions = self.get_invalid_actions(invalid_policies)
                 # Write invalid actions to file
                 with open(self.args.invalid_actions_output, 'w') as f:
                     json.dump(invalid_actions, f, indent=2)
