@@ -1021,11 +1021,11 @@ def generate_cleanup_report(data: dict, output_file: str, ld_api: LaunchDarklyAP
     """
     # Define base headers
     base_headers = [
-        'Project Name', 'Project Key', 'Project Tags',
-        'Flag Name', 'Flag Key', 'Maintainer',
-        'Creation Date', 'Days Since Creation',
-        'Environment Count', 'Environment Details',
-        'Temporary', 'Flag Tags', 'Kind'
+        'Project_Name', 'Project_Key', 'Project_Tags',
+        'Flag_Name', 'Flag_Key', 'Maintainer',
+        'Creation_Date', 'Days_Since_Creation',
+        'Environment_Count', 'Environment_Details',
+        'Temporary', 'Flag_Tags', 'Kind'
     ]
     
     # Add evaluation headers only for single project reports
