@@ -253,7 +253,7 @@ class SimilarityReport:
   
         return css_class
     def _generate_policy_detail_html(self, role_info: Dict, role_key: str) -> str:
-       
+        self.logger.debug(f"_generate_policy_detail_html() start.")
         # Format the teams and members data for display
         teams_assigned = ",".join([f"{m}" for m in role_info['teams']])
         members_assigned = ",".join([f"{m}" for m in role_info['members']])
@@ -270,6 +270,13 @@ class SimilarityReport:
             members = members_assigned.split(',')
             members_list = "\n".join([f"<li>{member}</li>" for member in members if member])
         
+        teamClassValue = self._get_value_class(role_info.get('total_teams', 0) if role_info else 0)
+        teamToggleValue=role_info['total_teams'] if role_info else 'Not defined'
+        memberClassValue = self._get_value_class(role_info.get('total_members', 0) if role_info else 0)
+        memberToggleValue=role_info['total_members'] if role_info else 'Not defined'
+        invliadActionsLen = len(self.invalid_actions.get(role_key, [])) if self.invalid_actions is not None else 0
+        invalidActionsClassValue = self._get_value_class_bad_good(invliadActionsLen)
+        invalidActionsToggleValue=invliadActionsLen if role_info else 'Not defined'
         return f'''
             <div class="role-meta">Key: {role_key}</div>
             <div class="role-meta">ID:{role_info['_id'] if role_info else 'Not defined'}</div>
@@ -284,7 +291,7 @@ class SimilarityReport:
                     <div class="stat-item">
                         
                         <div class="stat-label">Teams</div>
-                        <div class="stat-value {self._get_value_class(role_info.get('total_teams', 0) if role_info else 0)}" onclick="toggleDetailPanel('teams-{role_key}')">{role_info['total_teams'] if role_info else 'Not defined'}</div>
+                        <div class="stat-value {teamClassValue}" onclick="toggleDetailPanel('teams-{role_key}')">{teamToggleValue}</div>
                         <div id="teams-{role_key}" class="detail-panel teams-panel hidden">
                             <div class="detail-header">
                                 <h4>Teams Assigned</h4>
@@ -297,7 +304,7 @@ class SimilarityReport:
                     </div>
                     <div class="stat-item">
                         <div class="stat-label">Members</div>
-                        <div class="stat-value {self._get_value_class(role_info.get('total_members', 0) if role_info else 0)}" onclick="toggleDetailPanel('members-{role_key}')">{role_info['total_members'] if role_info else 'Not defined'}</div>
+                        <div class="stat-value {memberClassValue}" onclick="toggleDetailPanel('members-{role_key}')">{memberToggleValue}</div>
                         <div id="members-{role_key}" class="detail-panel members-panel hidden">
                             <div class="detail-header">
                                 <h4>Members Assigned</h4>
@@ -311,14 +318,14 @@ class SimilarityReport:
 
                     <div class="stat-item">
                         <div class="stat-label">Invalid Actions</div>
-                        <div class="stat-value {self._get_value_class_bad_good(len(self.invalid_actions.get(role_key, [])))}" onclick="toggleDetailPanel('invalid-actions-{role_key}')">{len(self.invalid_actions.get(role_key, []))}</div>
+                        <div class="stat-value {invalidActionsClassValue}" onclick="toggleDetailPanel('invalid-actions-{role_key}')">{invalidActionsToggleValue}</div>
                         <div id="invalid-actions-{role_key}" class="detail-panel invalid-actions-panel hidden">
                             <div class="detail-header">
                                 <h4>Invalid Actions</h4>
                                 <button class="close-button" onclick="toggleDetailPanel('invalid-actions-{role_key}')">×</button>
                             </div>
                             <ul class="detail-list">
-                                {self._create_invalid_action_pill(self.invalid_actions[role_key]) if len(self.invalid_actions.get(role_key, [])) > 0 else "No Invalid actions"}
+                                {self._create_invalid_action_pill(self.invalid_actions[role_key]) if invliadActionsLen > 0 else "No Invalid actions"}
                             </ul>
                         </div>
                     </div>
@@ -588,7 +595,7 @@ class SimilarityReport:
                 first_node_name = first_node['name'] if first_node else ''
                 
                 for node in cluster['nodes']:
-                    roles_html += f'<a href="javascript:void(0)" onclick="navigateToRole(\'{node["id"]}\', \'{node["name"]}\')" class="role-link" data-original-text="{node["name"]}">{node["name"]}</a>, '
+                    roles_html += f'<a href="javascript:void(0)" onclick="navigateToRole(\'{node["id"]}\', \'{node["name"]}\')" class="role-link" data-original-text="{node["name"]}">{node["id"]}</a>, '
                 roles_html = roles_html.rstrip(', ')
                 
                 avg_similarity = self._format_percentage(cluster['avg_similarity'])
@@ -799,7 +806,7 @@ class SimilarityReport:
 
         # Generate teams with project access table
         teams_project_table = self._generate_teams_project_table()
-
+        invalid_actions_len = len(self.invalid_actions) if self.invalid_actions is not None else 0
 
         similarity_graph = self._generate_similarity_graph_html()
 
@@ -826,7 +833,7 @@ class SimilarityReport:
                     </div>
                     <div class="stat-item-row">
                         <div class="stat-label">Total Roles with Invalid Actions</div>
-                        <div class="stat-value-static {self._get_value_class_bad_good(len(self.invalid_actions))}">{len(self.invalid_actions)}</div>
+                        <div class="stat-value-static {self._get_value_class_bad_good(invalid_actions_len)}">{invalid_actions_len}</div>
                     </div>
                 </div>
                 <div class="stat-item">
