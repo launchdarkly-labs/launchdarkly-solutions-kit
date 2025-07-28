@@ -1,0 +1,151 @@
+{
+    "metadata": {
+    "version": "1.0.0",
+    "last_updated": "2025-04-11",
+    "source": "https://launchdarkly.com/docs/home/account/role-actions#expand-webhook-actions"
+  },
+    "resources": {
+    "acct": [
+        "createAnnouncement", "createSamlConfig", "createScimConfig", "deleteAccount",
+        "deleteAccountToken", "deleteAnnouncement", "deleteSamlConfig", "deleteScimConfig",
+        "deleteSubscription", "getPaymentCard", "revokeSessions", "updateAccountToken",
+        "updateAnnouncement", "updateBillingContact", "updateOrganization", "updatePaymentCard",
+        "updateRequireMfa", "updateSamlDecryptionEnabled", "updateSamlDefaultRole", "updateSamlEnabled",
+        "updateSamlLogoutUrl", "updateSamlRequestSigningEnabled", "updateSamlRequireSso", "updateSamlSsoUrl",
+        "updateSamlX509Certificate", "updateSamlX509KeystoreId", "updateSessionDuration", "updateSessionRefresh",
+        "updateSubscription"
+    ],
+    "proj/*:aiconfig/*": [
+        "createAIConfig", "deleteAIConfig", "deleteAIConfigVariation", "updateAIConfig",
+        "updateAIConfigVariation"
+    ],
+    "proj/*:ai-model-config/*": [
+        "createAIModelConfig", "deleteAIModelConfig"
+    ],
+    "application/*": [
+        "createApplication", "createApplicationVersion", "deleteApplication", "deleteApplicationVersion",
+        "updateApplicationDescription", "updateApplicationKind", "updateApplicationMaintainer", "updateApplicationVersionName",
+        "updateApplicationVersionSupport"
+    ],
+    "code-reference-repository/*": [
+        "createCodeRefsRepository", "deleteCodeRefsRepository", "updateCodeRefsRepositoryBranches", "updateCodeRefsRepositoryConfiguration",
+        "updateCodeRefsRepositoryName", "updateCodeRefsRepositoryOn"
+    ],
+    "proj/*:context-kind/*": [
+        "createContextKind", "updateAvailabilityForExperiments", "updateContextKind"
+    ],
+    "proj/*:env/*:destination/*": [
+        "createDestination", "deleteDestination", "updateConfiguration", "updateName",
+        "updateOn"
+    ],
+    "domain-verification/*": [
+        "createDomainVerification", "deleteDomainVerification", "updateDomainVerification"
+    ],
+    "proj/*:env/*": [
+        "createEnvironment", "deleteContextInstance", "deleteEnvironment", "importEventData",
+        "updateApiKey", "updateApprovalSettings", "updateColor", "updateConfirmChanges",
+        "updateCritical", "updateDefaultTrackEvents", "updateMobileKey", "updateName",
+        "updateRequireComments", "updateSecureMode", "updateTags", "updateTtl",
+        "viewSdkKey"
+    ],
+    "proj/*:env/*:experiment/*": [
+        "createExperiment", "updateExperiment", "updateExperimentArchived"
+    ],
+    "proj/*:layer/*": [
+        "createLayer", "updateLayer", "updateLayerConfiguration"
+    ],
+    "proj/*:env/*:flag/*": [
+        "addReleasePipeline", "applyApprovalRequest", "bypassRequiredApproval", "cloneFlag",
+        "copyFlagConfigFrom", "copyFlagConfigTo", "createApprovalRequest", "createFlag",
+        "createFlagLink", "createTriggers", "deleteApprovalRequest", "deleteFlag",
+        "deleteFlagLink", "deleteTriggers", "manageFlagFollowers", "removeReleasePipeline",
+        "replaceReleasePipeline", "reviewApprovalRequest", "stopMeasuredRolloutOnFlagFallthrough", "stopMeasuredRolloutOnFlagRule",
+        "toggleFlag", "updateApprovalRequest", "updateClientSideFlagAvailability", "updateDeprecated",
+        "updateDescription", "updateExpiringTargets", "updateFallthrough", "updateFallthroughWithMeasuredRollout",
+        "updateFeatureWorkflows", "updateFlagConfigMigrationSettings", "updateFlagCustomProperties", "updateFlagDefaultVariations",
+        "updateFlagLink", "updateFlagRuleDescription", "updateFlagSalt", "updateFlagVariations",
+        "updateGlobalArchived", "updateIncludeInSnippet", "updateMaintainer", "updateMeasuredRolloutConfiguration",
+        "updateName", "updateOffVariation", "updateOn", "updatePrerequisites",
+        "updateReleasePhaseStatus", "updateRules", "updateRulesWithMeasuredRollout", "updateScheduledChanges",
+        "updateTags", "updateTargets", "updateTemporary", "updateTrackEvents",
+        "updateTriggers"
+    ],
+    "proj/*:env/*:holdout/*": [
+        "addExperimentToHoldout", "createHoldout", "removeExperimentFromHoldout", "updateHoldoutDescription",
+        "updateHoldoutMethodology", "updateHoldoutName", "updateHoldoutRandomizationUnit", "updateHoldoutStatus"
+    ],
+    "integration/*": [
+        "createIntegration", "deleteIntegration", "updateConfiguration", "updateName",
+        "updateOn", "validateConnection"
+    ],
+    "member/*": [
+        "approveDomainMatchedMember", "createMember", "deleteMember", "sendMfaRecoveryCode",
+        "sendMfaRequest", "updateCustomRole", "updateMemberRoleAttributes", "updateRole"
+    ],
+    "proj/*:metric/*": [
+        "createMetric", "deleteMetric", "updateDescription", "updateEventDefault",
+        "updateEventKey", "updateMaintainer", "updateName", "updateNumeric",
+        "updateNumericSuccess", "updateNumericUnit", "updateOn", "updateRandomizationUnits",
+        "updateSelector", "updateTags", "updateUnitAggregationType", "updateUrls"
+    ],
+    "proj/*:metric-group/*": [
+        "createMetricGroup", "deleteMetricGroup", "updateMetricGroupDescription", "updateMetricGroupMaintainer",
+        "updateMetricGroupMetrics", "updateMetricGroupName", "updateMetricGroupTags"
+    ],
+    "pending-request/*": [
+        "updatePendingRequest"
+    ],
+    "member/*:token/*": [
+        "createAccessToken", "deleteAccessToken", "resetAccessToken", "updateAccessTokenDescription",
+        "updateAccessTokenName", "updateAccessTokenPolicy"
+    ],
+    "proj/*": [
+        "createProject", "deleteProject", "updateDefaultClientSideAvailability", "updateDefaultReleasePipeline",
+        "updateIncludeInSnippetByDefault", "updateProjectFlagDefaults", "updateProjectName", "updateTags",
+        "viewProject"
+    ],
+    "relay-proxy-config/*": [
+        "createRelayAutoConfiguration", "deleteRelayAutoConfiguration", "resetRelayAutoConfiguration", "updateRelayAutoConfigurationName",
+        "updateRelayAutoConfigurationPolicy"
+    ],
+    "proj/*:release-pipeline/*": [
+        "createReleasePipeline", "deleteReleasePipeline", "updateReleasePipelineDescription", "updateReleasePipelineName",
+        "updateReleasePipelinePhase", "updateReleasePipelinePhaseName", "updateReleasePipelineTags"
+    ],
+    "role/*": [
+        "createRole", "deleteRole", "updateBasePermissions", "updateDescription",
+        "updateMembers", "updateName", "updatePolicy", "updateTokens"
+    ],
+    "proj/*:env/*:segment/*": [
+        "applyApprovalRequest", "createApprovalRequest", "createSegment", "deleteApprovalRequest",
+        "deleteSegment", "reviewApprovalRequest", "updateApprovalRequest", "updateDescription",
+        "updateExcluded", "updateExpiringTargets", "updateIncluded", "updateName",
+        "updateRules", "updateScheduledChanges", "updateTags"
+    ],
+    "service-token/*": [
+        "createAccessToken", "deleteAccessToken", "resetAccessToken", "updateAccessTokenDescription",
+        "updateAccessTokenName"
+    ],
+    "team/*": [
+        "createTeam", "deleteTeam", "updateTeamCustomRoles", "updateTeamDescription",
+        "updateTeamMembers", "updateTeamName", "updateTeamPermissionGrants", "viewTeam"
+    ],
+    "template/*": [
+        "createTemplate", "deleteTemplate", "viewTemplate"
+    ],
+    "webhook/*": [
+        "createWebhook", "deleteWebhook", "updateName", "updateOn",
+        "updateQuery", "updateSecret", "updateStatements", "updateTags",
+        "updateUrl"
+    ],
+    "proj/*:env/*:request/*": [
+        "approvePendingRequest", "createPendingRequest", "denyPendingRequest", "viewPendingRequest"
+    ],
+    "domain/*": [
+        "createDomainVerification", "deleteDomainVerification", "updateDomainVerification"
+    ],
+    "proj/*:view/*": [
+        "createView", "deleteView", "linkFlagToView", "unlinkFlagFromView", "updateView", "viewView"
+    ]
+  }
+}

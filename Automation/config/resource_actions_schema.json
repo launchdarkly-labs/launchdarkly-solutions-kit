@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LaunchDarkly Resource Actions Schema",
+  "description": "Schema for defining LaunchDarkly resource actions mappings",
+  "type": "object",
+  "required": ["metadata", "resources"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["version", "last_updated"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "Version of the resource actions schema",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "author":{
+            "type": "string",
+            "description": "Author of the resource actions",
+            "format": "date"
+          },
+
+
+        "last_updated": {
+          "type": "string",
+          "description": "Date when the resource actions were last updated",
+          "format": "date"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source URL or reference for the resource actions",
+        }
+      },
+      "additionalProperties": false
+    },
+    "resources": {
+      "type": "object",
+      "description": "Mapping of resource types to their allowed actions",
+      "patternProperties": {
+        "^[a-zA-Z0-9_/*-]+$": {
+          "type": "array",
+          "description": "List of actions allowed for this resource type",
+          "items": {
+            "type": "string",
+            "description": "An action that can be performed on this resource type"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

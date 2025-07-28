@@ -1,3 +1,5 @@
+output/
+
 *.bak/
 reports/
 # OS and Editor files
