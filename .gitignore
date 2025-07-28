@@ -1,5 +1,5 @@
 output/
-
+*.egg-info/
 *.bak/
 reports/
 # OS and Editor files
