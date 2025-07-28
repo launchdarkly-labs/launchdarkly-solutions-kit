@@ -102,7 +102,9 @@ Examples:
   team-manager --suggestions               # Get role assignment suggestions
   team-manager --analyze-template template.json  # Analyze template for roleAttribute patterns
   team-manager --generate-patches template.json  # Generate patches for all teams with roles
+  team-manager --generate-patches template1.json template2.json  # Generate consolidated patches using multiple templates
   team-manager --generate-patches role-key --remote-template  # Generate patches using remote template
+  team-manager --generate-patches role-key1 role-key2 --remote-template  # Generate consolidated patches using multiple remote templates
   team-manager --generate-patches template.json --teams team-1 team-2  # Generate patches for specific teams
   team-manager --generate-patches role-key --remote-template --teams team-1 --template-cache-dir custom/templates  # Remote template with custom cache
   team-manager --apply-patches team-1 team-2  # Apply patches to specific teams
@@ -128,10 +130,10 @@ Examples:
     # Patch generation operations
     parser.add_argument('--analyze-template', '-at', metavar='TEMPLATE_FILE',
                         help='Analyze a template role file for roleAttribute patterns')
-    parser.add_argument('--generate-patches', '-gp', metavar='TEMPLATE_FILE_OR_ROLE_KEY',
-                        help='Generate patch files for teams based on template and their roles')
+    parser.add_argument('--generate-patches', '-gp', nargs='+', metavar='TEMPLATE_FILE_OR_ROLE_KEY',
+                        help='Generate patch files for teams based on one or more templates and their roles')
     parser.add_argument('--remote-template', '-rt', action='store_true',
-                        help='Fetch template remotely by role key instead of using local file')
+                        help='Fetch templates remotely by role key instead of using local files')
     parser.add_argument('--template-cache-dir', default='output/template',
                         help='Directory to cache remote templates (default: output/template)')
     parser.add_argument('--apply-patches', '-ap', nargs='+', metavar='TEAM_KEY',
@@ -241,53 +243,117 @@ Examples:
             print("="*60)
             
             try:
-                results = team_manager.generate_team_patches(
-                    template_file=args.generate_patches,
-                    team_keys=args.teams,
-                    output_dir=args.patch_output_dir,
-                    is_remote_template=args.remote_template,
-                    template_cache_dir=args.template_cache_dir
-                )
-                
-                template_analysis = results['template_analysis']
-                print(f"Template: {template_analysis['template_file']}")
-                print(f"Template Role: {template_analysis['role_key']}")
-                print(f"Unique Attributes: {', '.join(template_analysis['unique_attributes'])}")
-                if results['remote_template_used']:
-                    print(f"Remote Template: Yes (cached to {results['template_cache_directory']})")
-                else:
-                    print(f"Remote Template: No (local file)")
-                print()
-                
-                print(f"Patch Generation Results:")
-                print(f"  Teams Processed: {results['teams_processed']}")
-                print(f"  Patches Generated: {results['patches_generated']}")
-                print(f"  Failed Teams: {len(results['failed_teams'])}")
-                print(f"  Output Directory: {results['output_directory']}")
-                print()
-                
-                if results['generated_patches']:
-                    print(f"Generated Patches:")
-                    for patch in results['generated_patches']:
-                        print(f"  • {patch['team_key']}: {patch['patch_file']}")
-                        print(f"    Roles: {', '.join(patch['roles_analyzed'])}")
-                        print(f"    Attributes: {', '.join(patch['attribute_types'])}")
-                        # Check for missing attributes for this team
-                        missing_attrs = []
-                        for attr in template_analysis['unique_attributes']:
-                            if attr not in patch['attribute_types']:
-                                missing_attrs.append(attr)
-                        for attr, values in patch['extracted_values'].items():
-                            print(f"      {attr}: {values}")
-                        if missing_attrs:
-                            print(f"    ⚠️ Missing attributes for [{patch['team_key']}]: {', '.join(missing_attrs)}")
-                        print()
-                
-                if results['failed_teams']:
-                    print(f"Failed Teams:")
-                    for team in results['failed_teams']:
-                        print(f"  • {team}")
+                if len(args.generate_patches) == 1:
+                    # Single template - use original method
+                    template = args.generate_patches[0]
+                    print(f"Processing Single Template: {template}")
+                    
+                    results = team_manager.generate_team_patches(
+                        template_file=template,
+                        team_keys=args.teams,
+                        output_dir=args.patch_output_dir,
+                        is_remote_template=args.remote_template,
+                        template_cache_dir=args.template_cache_dir
+                    )
+                    
+                    template_analysis = results['template_analysis']
+                    print(f"Template: {template_analysis['template_file']}")
+                    print(f"Template Role: {template_analysis['role_key']}")
+                    print(f"Unique Attributes: {', '.join(template_analysis['unique_attributes'])}")
+                    if results['remote_template_used']:
+                        print(f"Remote Template: Yes (cached to {results['template_cache_directory']})")
+                    else:
+                        print(f"Remote Template: No (local file)")
                     print()
+                    
+                    print(f"Patch Generation Results:")
+                    print(f"  Teams Processed: {results['teams_processed']}")
+                    print(f"  Patches Generated: {results['patches_generated']}")
+                    print(f"  Failed Teams: {len(results['failed_teams'])}")
+                    print(f"  Output Directory: {results['output_directory']}")
+                    print()
+                    
+                    if results['generated_patches']:
+                        print(f"Generated Patches:")
+                        for patch in results['generated_patches']:
+                            print(f"  • {patch['team_key']}: {patch['patch_file']}")
+                            print(f"    Roles: {', '.join(patch['roles_analyzed'])}")
+                            print(f"    Attributes: {', '.join(patch['attribute_types'])}")
+                            # Check for missing attributes for this team
+                            missing_attrs = []
+                            for attr in template_analysis['unique_attributes']:
+                                if attr not in patch['attribute_types']:
+                                    missing_attrs.append(attr)
+                            for attr, values in patch['extracted_values'].items():
+                                print(f"      {attr}: {values}")
+                            if missing_attrs:
+                                print(f"    ⚠️ Missing attributes for [{patch['team_key']}]: {', '.join(missing_attrs)}")
+                            print()
+                    
+                    if results['failed_teams']:
+                        print(f"Failed Teams:")
+                        for team in results['failed_teams']:
+                            print(f"  • {team}")
+                        print()
+                else:
+                    # Multiple templates - use consolidated method
+                    print(f"Processing Multiple Templates: {', '.join(args.generate_patches)}")
+                    
+                    results = team_manager.generate_team_patches_multi_template(
+                        template_files=args.generate_patches,
+                        team_keys=args.teams,
+                        output_dir=args.patch_output_dir,
+                        is_remote_template=args.remote_template,
+                        template_cache_dir=args.template_cache_dir
+                    )
+                    
+                    print(f"Templates Processed: {results['templates_processed']}")
+                    for i, analysis in enumerate(results['template_analyses'], 1):
+                        print(f"  Template {i}: {analysis['template_file']}")
+                        print(f"    Role: {analysis['role_key']}")
+                        print(f"    Unique Attributes: {', '.join(analysis['unique_attributes'])}")
+                    
+                    if results['remote_template_used']:
+                        print(f"Remote Templates: Yes (cached to {results['template_cache_directory']})")
+                    else:
+                        print(f"Remote Templates: No (local files)")
+                    print()
+                    
+                    print(f"Consolidated Patch Generation Results:")
+                    print(f"  Teams Processed: {results['teams_processed']}")
+                    print(f"  Patches Generated: {results['patches_generated']}")
+                    print(f"  Failed Teams: {len(results['failed_teams'])}")
+                    print(f"  Output Directory: {results['output_directory']}")
+                    print()
+                    
+                    # Get all unique attributes across all templates
+                    all_unique_attrs = set()
+                    for analysis in results['template_analyses']:
+                        all_unique_attrs.update(analysis['unique_attributes'])
+                    
+                    if results['generated_patches']:
+                        print(f"Generated Consolidated Patches:")
+                        for patch in results['generated_patches']:
+                            print(f"  • {patch['team_key']}: {patch['patch_file']}")
+                            print(f"    Templates Used: {', '.join(patch['templates_used'])}")
+                            print(f"    Roles: {', '.join(patch['roles_analyzed'])}")
+                            print(f"    Attributes: {', '.join(patch['attribute_types'])}")
+                            # Check for missing attributes for this team
+                            missing_attrs = []
+                            for attr in all_unique_attrs:
+                                if attr not in patch['attribute_types']:
+                                    missing_attrs.append(attr)
+                            for attr, values in patch['extracted_values'].items():
+                                print(f"      {attr}: {values}")
+                            if missing_attrs:
+                                print(f"    ⚠️ Missing attributes for [{patch['team_key']}]: {', '.join(missing_attrs)}")
+                            print()
+                    
+                    if results['failed_teams']:
+                        print(f"Failed Teams:")
+                        for team in results['failed_teams']:
+                            print(f"  • {team}")
+                        print()
                         
             except (FileNotFoundError, ValueError) as e:
                 print(f"Error: {e}")
