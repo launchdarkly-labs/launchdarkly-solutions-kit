@@ -59,6 +59,7 @@ Icon
 *.bak
 
 # Cache
+cache/
 ld_data_cache.json
 flag_cleanup_report.csv
 

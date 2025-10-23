@@ -219,7 +219,14 @@ class LaunchDarklyAPI:
                             "tags": env.get("tags", []),
                             "critical": env.get("critical", False),
                             "apiKey": env["apiKey"],
-                            "mobileKey": env["mobileKey"]
+                            "mobileKey": env["mobileKey"],  
+                            "approvalRequired": env["approvalSettings"]["required"],
+                            "bypassApprovalsForPendingChanges": env["approvalSettings"]["bypassApprovalsForPendingChanges"],
+                            "minNumApprovals": env["approvalSettings"]["minNumApprovals"],
+                            "canReviewOwnRequest": env["approvalSettings"]["canReviewOwnRequest"],
+                            "canApplyDeclinedChanges": env["approvalSettings"]["canApplyDeclinedChanges"],
+                            "serviceKind": env["approvalSettings"]["serviceKind"],
+                            "requiredApprovalTags": env["approvalSettings"]["requiredApprovalTags"],
                         }
                         processed_environments.append(processed_env)
                     
@@ -813,7 +820,7 @@ def parse_args():
     )
     parser.add_argument("--force-refresh", action="store_true", 
                       help="Force refresh of cached data")
-    parser.add_argument("--output", "-o", default="flag_cleanup_report.csv",
+    parser.add_argument("--output", "-o", 
                       help="Output file path (default: flag_cleanup_report.csv)")
     parser.add_argument("--cache-ttl", type=int, default=24,
                       help="Cache time-to-live in hours (default: 24)")
@@ -830,6 +837,10 @@ def parse_args():
                       help="Generate report for all projects")
     parser.add_argument("--cache-dir", default="cache",
                       help="Directory to store cache files (default: cache)")
+    parser.add_argument("--environment-report", action="store_true",
+                      help="Generate environment report")
+    parser.add_argument("--flag-details",
+                      help="Generate flag details report for all flags in project and environments. Requires project key to be specified.")
     
     args = parser.parse_args()
     isInvalidArgs = False
@@ -838,13 +849,14 @@ def parse_args():
     if len(sys.argv) == 1:
         # No arguments triggers interactive mode
         return args
-    elif not any([args.all_projects, args.list_projects, args.list_tags, args.project_key, args.tag]):
+    elif not any([args.all_projects, args.list_projects, args.list_tags, args.project_key, args.tag, args.flag_details]):
         print("\nError: Must specify one of:")
         print("  --all-projects    : Generate report for all projects")
         print("  --project_key (-p): Generate report for specific project")
         print("  --tag (-t)        : Generate report for projects with tag")
         print("  --list-projects   : List available projects")
         print("  --list-tags       : List available tags")
+        print("  --flag-details    : Generate flag details report for specific project")
         print("  Or run without arguments for interactive mode")
         isInvalidArgs = True
 
@@ -852,6 +864,34 @@ def parse_args():
         sys.exit(1)
         
     return args
+def _obfuscate_key(key: str, show_last: int = 4) -> str:
+    """
+    Obfuscate all characters/digits of a key except for the last N characters.
+    
+    Args:
+        key: The key string to obfuscate
+        show_last: Number of characters to show at the end (default: 4)
+        
+    Returns:
+        Obfuscated string with asterisks replacing all but the last N characters
+        
+    Examples:
+        >>> _obfuscate_key("987654321")
+        '*****4321'
+        >>> _obfuscate_key("sdk-1234-5678-9012", 4)
+        '**************9012'
+        >>> _obfuscate_key("abc", 4)
+        'abc'
+        >>> _obfuscate_key("")
+        ''
+    """
+    if not key:
+        return ""
+    if len(key) <= show_last:
+        return key
+    visible_part = key[-show_last:]
+    hidden_count = len(key) - show_last
+    return "*" * hidden_count + visible_part
 
 def _to_datetime_format(last_req: str) -> Optional[datetime]:
     """
@@ -1007,6 +1047,171 @@ def prompt_for_project(projects: List[dict]) -> Optional[str]:
         except ValueError:
             print("Please enter a valid number, 'a' for all projects, or 'q' to quit")
 
+def generate_environment_report(data: dict, output_file: str, project_key: Optional[str] = None):
+    """
+    Generate CSV report of environment data
+    
+    Args:
+        data: Project and environment data from LaunchDarkly
+        output_file: Path to output CSV file
+        project_key: Optional specific project to analyze (if None, includes all projects)
+    """
+    headers = [
+        'Project_Key', 'Environment_Key', 'Environment_Name', 'Color', 
+        'Default_TTL', 'Secure_Mode', 'Default_Track_Events', 'Require_Comments',
+        'Confirm_Changes', 'Tags', 'Critical', 'API_Key', 'Mobile_Key',
+        'Approval_Required', 'Bypass_Approvals_For_Pending_Changes', 
+        'Min_Num_Approvals', 'Can_Review_Own_Request', 'Can_Apply_Declined_Changes',
+        'Service_Kind', 'Required_Approval_Tags'
+    ]
+    rows = []
+    for project in data.get('projects', []):
+        current_project_key = project.get('key', '')
+        if project_key and current_project_key != project_key:
+            continue
+        environments = project.get('environments', [])
+        for env in environments:
+            row = {
+                'Project_Key': current_project_key,
+                'Environment_Key': env.get('key', ''),
+                'Environment_Name': env.get('name', ''),
+                'Color': env.get('color', ''),
+                'Default_TTL': env.get('defaultTtl', ''),
+                'Secure_Mode': env.get('secureMode', ''),
+                'Default_Track_Events': env.get('defaultTrackEvents', ''),
+                'Require_Comments': env.get('requireComments', ''),
+                'Confirm_Changes': env.get('confirmChanges', ''),
+                'Tags': ';'.join(env.get('tags', [])) if env.get('tags') else '',
+                'Critical': env.get('critical', ''),
+                'API_Key': _obfuscate_key(env.get('apiKey', '')),
+                'Mobile_Key': _obfuscate_key(env.get('mobileKey', '')),
+                'Approval_Required': env.get('approvalRequired', ''),
+                'Bypass_Approvals_For_Pending_Changes': env.get('bypassApprovalsForPendingChanges', ''),
+                'Min_Num_Approvals': env.get('minNumApprovals', ''),
+                'Can_Review_Own_Request': env.get('canReviewOwnRequest', ''),
+                'Can_Apply_Declined_Changes': env.get('canApplyDeclinedChanges', ''),
+                'Service_Kind': env.get('serviceKind', ''),
+                'Required_Approval_Tags': ';'.join(env.get('requiredApprovalTags', [])) if env.get('requiredApprovalTags') else ''
+            }
+            rows.append(row)
+    with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=headers)
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"Environment report generated: {output_file}")
+    print(f"Total environments: {len(rows)}")
+def generate_flag_details_report(data: dict, output_file: str, ld_api: LaunchDarklyAPI, 
+                          project_key: str, force_refresh: bool = False):
+    """
+    Generate CSV report with detailed flag information for a specific project.
+    Each row represents one flag in one environment.
+    
+    Args:
+        data: Project and flag data from LaunchDarkly
+        output_file: Path to output CSV file
+        ld_api: LaunchDarklyAPI instance for fetching evaluation metrics
+        project_key: Specific project to analyze (required)
+        force_refresh: Whether to bypass cache
+    """
+    headers = [
+        'Primary_Key',  # <project-key>_<environment-key>_<flag-key>
+        'Project_Name',
+        'Project_Key',
+        'Project_Tags',
+        'Environment_Key',
+        'Environment_Name',
+        'Flag_Name',
+        'Flag_Key',
+        'Maintainer',
+        'Creation_Date',
+        'Days_Since_Creation',
+        'Flag_State',  # On/Off
+        'Flag_Status',  # active/inactive/launched
+        'Archived',
+        'Last_Requested',
+        'Days_Since_Last_Eval',
+        'Temporary',
+        'Flag_Tags',
+        'Kind',
+        '60_Day_Evals',
+        '30_Day_Evals',
+        '14_Day_Evals',
+        '7_Day_Evals'
+    ]
+    today = datetime.now()
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        target_project = next(
+            (p for p in data["projects"] if p["key"] == project_key),
+            None
+        )
+        if not target_project:
+            raise ValueError(f"Project '{project_key}' not found")
+        projects = [target_project]
+        total_rows = sum(
+            len(project["flags"]) * len(project["environments"]) 
+            for project in projects
+        )
+        progress = tqdm(total=total_rows, desc="Generating flag details report", unit="rows")
+        for project in projects:
+            project_tags = ", ".join(project.get("tags", [])) or "none"
+            for flag in project["flags"]:
+                creation_date = datetime.fromtimestamp(flag["creationDate"] / 1000)
+                days_since_creation = (today - creation_date).days + 1
+                for env in project["environments"]:
+                    env_key = env["key"]
+                    env_name = env["name"]
+                    env_data = flag["environments"].get(env_key, {})
+                    primary_key = f"{project['key']}_{env_key}_{flag['key']}"
+                    state = "On" if env_data.get("on") else "Off"
+                    status = env_data.get("status", "unknown")
+                    archived = "Yes" if env_data.get("archived") else "No"
+                    last_req = env_data.get("lastRequested")
+                    if last_req is not None:
+                        days_ago = _day_ago_from_today(last_req)
+                        days_since_eval = (today - _to_datetime_format(last_req)).days if _to_datetime_format(last_req) else ""
+                    else:
+                        last_req = "Never"
+                        days_ago = "Never"
+                        days_since_eval = ""
+                    metrics = ld_api._fetch_flag_evaluation_metrics(
+                        project["key"], 
+                        env_key, 
+                        flag["key"],
+                        force_refresh=force_refresh
+                    )
+                    row = [
+                        primary_key,
+                        project["name"],
+                        project["key"],
+                        project_tags,
+                        env_key,
+                        env_name,
+                        flag["name"],
+                        flag["key"],
+                        flag.get("_maintainer", {}).get("email", "No maintainer"),
+                        creation_date.strftime("%Y-%m-%d"),
+                        days_since_creation,
+                        state,
+                        status,
+                        archived,
+                        last_req,
+                        days_since_eval,
+                        "Yes" if flag.get("temporary", False) else "No",
+                        ", ".join(flag.get("tags", [])) or "none",
+                        flag.get("kind", "unknown"),
+                        metrics.get('60_day_evals', 0),
+                        metrics.get('30_day_evals', 0),
+                        metrics.get('14_day_evals', 0),
+                        metrics.get('7_day_evals', 0)
+                    ]
+                    writer.writerow(row)
+                    progress.update(1)  # Update progress bar
+        progress.close()
+    print(f"\nFlag details report generated successfully: {output_file}")
+    print(f"Total rows: {total_rows}")
+    return 0
 def generate_cleanup_report(data: dict, output_file: str, ld_api: LaunchDarklyAPI, 
                           project_key: Optional[str] = None, force_refresh: bool = False):
     """
@@ -1256,6 +1461,8 @@ def main() -> int:
         if args.force_refresh:
             if args.project_key:
                 ld_api.purge_eval_cache(args.project_key)
+            elif args.flag_details:
+                ld_api.purge_eval_cache(args.flag_details)
             else:
                 ld_api.purge_eval_cache()
         
@@ -1276,6 +1483,24 @@ def main() -> int:
                 return 1
                 
             list_projects(ld_api, data)
+            return 0
+        if args.flag_details:
+            print(f"Fetching flag details for project: {args.flag_details}")
+            data = ld_api.fetch_and_cache_data(
+                force=args.force_refresh,
+                project_key=args.flag_details
+            )
+            if not data:
+                print("Failed to fetch project data")
+                return 1
+            output_file = args.output if args.output else f"flag_details_{args.flag_details}.csv"
+            generate_flag_details_report(
+                data,
+                output_file,
+                ld_api,
+                args.flag_details,
+                force_refresh=args.force_refresh
+            )
             return 0
         
         # Fetch data
@@ -1300,7 +1525,7 @@ def main() -> int:
             return 1
             
         # Interactive mode if no specific project or all-projects flag
-        if not (args.project_key or args.all_projects):
+        if not (args.project_key or args.all_projects or args.flag_details):
             # Display projects and get user selection
             projects = list_projects(ld_api, data)
             selected_key = prompt_for_project(projects)
@@ -1312,13 +1537,18 @@ def main() -> int:
             # If 'all' was selected, proceed with all projects
         
         # Generate report
-        generate_cleanup_report(
-            data, 
-            args.output, 
-            ld_api, 
-            args.project_key,
-            force_refresh=args.force_refresh
-        )
+        if args.environment_report:
+            output_file = args.output if args.output else "environment_report.csv"
+            generate_environment_report(data, output_file, args.project_key)
+        else:
+            output_file = args.output if args.output else "flag_cleanup_report.csv"
+            generate_cleanup_report(
+                data, 
+                output_file, 
+                ld_api, 
+                args.project_key,
+                force_refresh=args.force_refresh
+            )
         return 0
         
     except KeyboardInterrupt:

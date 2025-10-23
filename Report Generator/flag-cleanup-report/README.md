@@ -37,7 +37,7 @@ A tool that complements LaunchDarkly's [Launch Insights](https://docs.launchdark
 ![img](./img/csv-report.png)
 The CSV report provides a comprehensive analysis of your feature flags, helping identify cleanup opportunities and track flag usage patterns.
 
-It offers two views:
+It offers three views:
 
 1. Organization View:  Using `--all-projects` :
     - Project details (name, key, tags)
@@ -50,6 +50,13 @@ It offers two views:
     - Flag evaluation metrics per environment
     - 7, 14, 30, 60 day total evaluation count
     - includes everything in organization view
+3. Flag Details View: Using `--flag-details <project-key>`:
+    - One row per flag per environment
+    - Primary key for each flag/environment combination
+    - Environment-specific flag state and status
+    - Detailed evaluation metrics per environment
+    - Last evaluation timestamps and days since last eval
+    - Ideal for per-environment analysis and database imports
 
 
 
@@ -164,12 +171,14 @@ Interactive mode will:
 | `--cache-ttl` | Cache lifetime in hours | 24 |
 | `--cache-dir` | Directory to store cache files | cache |
 | `--project_key`, `-p` | Specific project to analyze (includes evaluation metrics) | None |
+| `--flag-details` | Generate detailed flag report for specific project (one row per flag per environment) | None |
 | `--tag`, `-t` | Filter by project tag(s). Can be specified multiple times | None |
 | `--list-projects` | List available projects | False |
 | `--list-tags` | List available project tags | False |
 | `--all-projects` | Analyze all projects | False |
+| `--environment-report` | Generate environment configuration report | False |
 
-> Must include either `--all-projects`, `--list-projects` or `--project_key` for command line mode.
+> Must include either `--all-projects`, `--list-projects`, `--project_key`, or `--flag-details` for command line mode.
 
 ### Project Tag Filtering
 
@@ -238,6 +247,10 @@ These metrics help identify flag usage, below are example patterns:
 # Generate report with evaluation metrics for specific project
 ld-cleanup-report --project_key demo-project
 
+# Generate detailed flag report (one row per flag per environment)
+ld-cleanup-report --flag-details sample-js-demo
+# Generate detailed flag report with custom output file
+ld-cleanup-report --flag-details sample-js-demo --output my-flags.csv
 # List projects with specific tag
 ld-cleanup-report --list-projects --tag demo
 
@@ -246,6 +259,40 @@ ld-cleanup-report --tag demo --tag java --all-projects
 
 # List projects with either tag
 ld-cleanup-report --list-projects --tag demo --tag managed-by-terraform
+```
+### Flag Details Report
+The `--flag-details` option generates a detailed CSV report where each row represents one flag in one environment. This format is ideal for:
+- Per-environment analysis
+- Database imports with unique primary keys
+- Filtering and querying specific flag/environment combinations
+- Tracking environment-specific evaluation metrics
+**Output Format:**
+```bash
+# Required: Launchdarkly Project key
+ld-cleanup-report --flag-details your-project-key
+# Creates: flag_details_your-project-key.csv
+```
+**Report Columns:**
+- `Primary_Key` - Unique identifier: `<project-key>_<environment-key>_<flag-key>`
+- `Project_Name`, `Project_Key`, `Project_Tags` - Project information
+- `Environment_Key`, `Environment_Name` - Environment identifiers
+- `Flag_Name`, `Flag_Key` - Flag identifiers
+- `Maintainer` - Flag maintainer email
+- `Creation_Date`, `Days_Since_Creation` - Flag age information
+- `Flag_State` - On/Off in this specific environment
+- `Flag_Status` - Status (active/inactive/launched) in this environment
+- `Archived` - Whether flag is archived in this environment
+- `Last_Requested` - Last evaluation timestamp for this environment
+- `Days_Since_Last_Eval` - Days since last evaluation in this environment
+- `Temporary` - Whether flag is marked as temporary
+- `Flag_Tags` - Tags applied to the flag
+- `Kind` - Flag type (boolean/multivariate)
+- `60_Day_Evals`, `30_Day_Evals`, `14_Day_Evals`, `7_Day_Evals` - Evaluation counts for this environment
+**Example Output:**
+```csv
+Primary_Key,Project_Name,Project_Key,Environment_Key,Environment_Name,Flag_Key,Flag_State,7_Day_Evals
+sample-js-demo_development_my-flag,Sample JS Demo,sample-js-demo,development,Development,my-flag,On,1234
+sample-js-demo_production_my-flag,Sample JS Demo,sample-js-demo,production,Production,my-flag,Off,0
 ```
 
 ## Cache Management
