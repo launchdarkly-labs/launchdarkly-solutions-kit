@@ -411,6 +411,51 @@ The cache key format (`env_key:flag_key:days`):
 - Allows efficient lookup of metrics
 
 
+## Command Execution Logging
+
+The tool automatically logs all command executions to `command_execution_log.csv` in the current directory. This provides an audit trail of all report generation activities.
+
+### Log Format
+The log file is in CSV format with the following columns:
+1. **Timestamp_Human_Readable** - Human-readable timestamp (YYYY-MM-DD HH:MM:SS)
+2. **Timestamp_Milliseconds** - Unix epoch timestamp in milliseconds
+3. **Command** - The type of command executed (e.g., `cleanup_report`, `flag_details_report`, `list_projects`)
+4. **Options** - Semicolon-separated list of options/parameters used
+
+### Example Log Entries
+```csv
+Timestamp_Human_Readable,Timestamp_Milliseconds,Command,Options
+2024-11-19 10:30:45,1700395845000,cleanup_report,project_key=demo-project; force_refresh=True
+2024-11-19 11:15:20,1700398520000,flag_details_report,flag_details=demo-project; output=demo_flags.csv
+2024-11-19 14:22:33,1700409753000,list_projects,tags=production
+2024-11-19 15:45:10,1700414710000,environment_report,all_projects=True
+```
+
+### Logged Commands
+The following command types are logged:
+- `cleanup_report` - Standard flag cleanup report
+- `flag_details_report` - Detailed flag report with evaluation metrics
+- `environment_report` - Environment configuration report
+- `list_projects` - Project listing operation
+- `list_tags` - Tag listing operation
+
+### Logged Options
+The following options are captured when present:
+- `project_key` - Specific project analyzed
+- `tags` - Project tag filters applied
+- `all_projects` - Whether all projects were analyzed
+- `force_refresh` - Whether cache was refreshed
+- `output` - Custom output file path
+- `cache_ttl` - Custom cache TTL (only if non-default)
+- `cache_dir` - Custom cache directory (only if non-default)
+- `flag_details` - Flag details project key
+
+### Notes
+- The log file is automatically created on first run
+- Logging failures do not interrupt normal operation (warnings are displayed)
+- The log file is excluded from git via `.gitignore` (matches `*.csv` pattern)
+- Timestamps are captured at the start of command execution
+
 
 
 ## Contributing & License

@@ -1056,13 +1056,16 @@ def generate_environment_report(data: dict, output_file: str, project_key: Optio
         output_file: Path to output CSV file
         project_key: Optional specific project to analyze (if None, includes all projects)
     """
+    # Generate timestamp in Unix epoch format (milliseconds)
+    report_timestamp = int(time.time() * 1000)
+    
     headers = [
         'Project_Key', 'Environment_Key', 'Environment_Name', 'Color', 
         'Default_TTL', 'Secure_Mode', 'Default_Track_Events', 'Require_Comments',
         'Confirm_Changes', 'Tags', 'Critical', 'API_Key', 'Mobile_Key',
         'Approval_Required', 'Bypass_Approvals_For_Pending_Changes', 
         'Min_Num_Approvals', 'Can_Review_Own_Request', 'Can_Apply_Declined_Changes',
-        'Service_Kind', 'Required_Approval_Tags'
+        'Service_Kind', 'Required_Approval_Tags', 'Report_Generated_Timestamp'
     ]
     rows = []
     for project in data.get('projects', []):
@@ -1091,7 +1094,8 @@ def generate_environment_report(data: dict, output_file: str, project_key: Optio
                 'Can_Review_Own_Request': env.get('canReviewOwnRequest', ''),
                 'Can_Apply_Declined_Changes': env.get('canApplyDeclinedChanges', ''),
                 'Service_Kind': env.get('serviceKind', ''),
-                'Required_Approval_Tags': ';'.join(env.get('requiredApprovalTags', [])) if env.get('requiredApprovalTags') else ''
+                'Required_Approval_Tags': ';'.join(env.get('requiredApprovalTags', [])) if env.get('requiredApprovalTags') else '',
+                'Report_Generated_Timestamp': report_timestamp
             }
             rows.append(row)
     with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
@@ -1113,6 +1117,9 @@ def generate_flag_details_report(data: dict, output_file: str, ld_api: LaunchDar
         project_key: Specific project to analyze (required)
         force_refresh: Whether to bypass cache
     """
+    # Generate timestamp in Unix epoch format (milliseconds)
+    report_timestamp = int(time.time() * 1000)
+    
     headers = [
         'Primary_Key',  # <project-key>_<environment-key>_<flag-key>
         'Project_Name',
@@ -1136,7 +1143,8 @@ def generate_flag_details_report(data: dict, output_file: str, ld_api: LaunchDar
         '60_Day_Evals',
         '30_Day_Evals',
         '14_Day_Evals',
-        '7_Day_Evals'
+        '7_Day_Evals',
+        'Report_Generated_Timestamp'
     ]
     today = datetime.now()
     with open(output_file, 'w', newline='') as f:
@@ -1204,7 +1212,8 @@ def generate_flag_details_report(data: dict, output_file: str, ld_api: LaunchDar
                         metrics.get('60_day_evals', 0),
                         metrics.get('30_day_evals', 0),
                         metrics.get('14_day_evals', 0),
-                        metrics.get('7_day_evals', 0)
+                        metrics.get('7_day_evals', 0),
+                        report_timestamp
                     ]
                     writer.writerow(row)
                     progress.update(1)  # Update progress bar
@@ -1224,6 +1233,9 @@ def generate_cleanup_report(data: dict, output_file: str, ld_api: LaunchDarklyAP
         project_key: Optional specific project to analyze
         force_refresh: Whether to bypass cache
     """
+    # Generate timestamp in Unix epoch format (milliseconds)
+    report_timestamp = int(time.time() * 1000)
+    
     # Define base headers
     base_headers = [
         'Project_Name', 'Project_Key', 'Project_Tags',
@@ -1247,6 +1259,9 @@ def generate_cleanup_report(data: dict, output_file: str, ld_api: LaunchDarklyAP
                     f'{env_name} 14 Day Evals',
                     f'{env_name} 7 Day Evals'
                 ])
+    
+    # Add timestamp as last column
+    headers.append('Report_Generated_Timestamp')
     
     today = datetime.now()
     
@@ -1342,6 +1357,9 @@ def generate_cleanup_report(data: dict, output_file: str, ld_api: LaunchDarklyAP
                             metrics.get('7_day_evals', 0)
                         ])
                 
+                # Add timestamp as last column
+                row.append(report_timestamp)
+                
                 writer.writerow(row)
                 progress.update(1)  # Update progress bar
 
@@ -1433,12 +1451,94 @@ def load_environment() -> str:
         )
     return api_key
 
+def log_command_execution(args: argparse.Namespace, log_file: str = "command_execution_log.csv"):
+    """
+    Log the command execution details to a CSV file.
+    
+    Args:
+        args: Parsed command line arguments
+        log_file: Path to the log file (default: command_execution_log.csv)
+        
+    The log includes:
+        - Human-readable timestamp
+        - Timestamp in milliseconds (Unix epoch)
+        - Command type (report type or action)
+        - All options/parameters used
+    """
+    # Generate timestamps
+    now = datetime.now()
+    human_readable_timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    timestamp_ms = int(now.timestamp() * 1000)
+    
+    # Determine command type
+    if args.list_projects:
+        command = "list_projects"
+    elif args.list_tags:
+        command = "list_tags"
+    elif args.flag_details:
+        command = "flag_details_report"
+    elif args.environment_report:
+        command = "environment_report"
+    else:
+        command = "cleanup_report"
+    
+    # Build options string
+    options = []
+    if args.project_key:
+        options.append(f"project_key={args.project_key}")
+    if args.tag:
+        options.append(f"tags={','.join(args.tag)}")
+    if args.all_projects:
+        options.append("all_projects=True")
+    if args.force_refresh:
+        options.append("force_refresh=True")
+    if args.output:
+        options.append(f"output={args.output}")
+    if args.cache_ttl != 24:  # Only log if non-default
+        options.append(f"cache_ttl={args.cache_ttl}")
+    if args.cache_dir != "cache":  # Only log if non-default
+        options.append(f"cache_dir={args.cache_dir}")
+    if args.flag_details:
+        options.append(f"flag_details={args.flag_details}")
+    
+    options_str = "; ".join(options) if options else "none"
+    
+    # Check if log file exists to determine if we need to write header
+    file_exists = os.path.exists(log_file)
+    
+    try:
+        with open(log_file, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            
+            # Write header if file is new
+            if not file_exists:
+                writer.writerow([
+                    'Timestamp_Human_Readable',
+                    'Timestamp_Milliseconds',
+                    'Command',
+                    'Options'
+                ])
+            
+            # Write log entry
+            writer.writerow([
+                human_readable_timestamp,
+                timestamp_ms,
+                command,
+                options_str
+            ])
+    except Exception as e:
+        # Don't fail the application if logging fails
+        print(f"Warning: Failed to write to log file: {e}")
+
 def main() -> int:
     """
     Main entry point for the LaunchDarkly cleanup report generator.
     """
     try:
         args = parse_args()
+        
+        # Log command execution
+        log_command_execution(args)
         
         # Load API key from .env file
         try:
