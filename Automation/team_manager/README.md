@@ -1,6 +1,6 @@
 # TeamManager - LaunchDarkly Team Management Tool
 
-TeamManager is a command-line tool that helps you explore and manage your LaunchDarkly teams and their roles. It gives you a clear view of which teams have which roles, how roles are spread out, and where you can make improvements. It comes with handy features for analyzing templates and creating or applying patches to update roles more efficiently.
+TeamManager is a command-line tool that helps you explore and manage your LaunchDarkly teams and their roles. It gives you a clear view of which teams have which roles, how roles are spread out, and where you can make improvements. It comes with handy features for analyzing role-scoped policy and creating or applying patches to update roles more efficiently.
 
 
 ## Features
@@ -11,17 +11,17 @@ TeamManager is a command-line tool that helps you explore and manage your Launch
 - **Assignment Suggestions**: Get recommendations for optimizing role assignments
 - **Export Capabilities**: Generate detailed JSON reports for further analysis
 
-### **Template Analysis**
-- **Role Attribute Discovery**: Analyze template roles for `roleAttribute` placeholders
+### **Role-scoped Policy Analysis**
+- **Role Attribute Discovery**: Analyze roles for `roleAttribute` placeholders
 - **Pattern Recognition**: Discover and categorize different attribute patterns
-- **Resource Analysis**: Detailed breakdown of template policy resources
-- **Remote Template Support**: Fetch templates directly from LaunchDarkly API
+- **Resource Analysis**: Detailed breakdown of role-scoped policy resources
+- **Remote Role scoped policy Support**: Fetch roles directly from LaunchDarkly API
 - **Missing Attribute Detection**: Identify teams that lack required role attributes
 
 ### **Patch Generation & Application**
-- **Automated Patch Creation**: Generate patches based on templates and actual team roles
+- **Automated Patch Creation**: Generate patches based on role-scoped policy and actual team roles
 - **Remote Template Integration**: Use live custom roles from LaunchDarkly as templates
-- **Template Caching**: Automatic local caching of remote templates for performance
+- **Template Caching**: Automatic local caching of remote role-scoped policy for performance
 - **Value Extraction**: Extract role attribute values from existing team roles
 - **Batch Processing**: Apply patches to multiple teams simultaneously
 - **Smart File Selection**: Automatically uses the latest patch file when multiple exist
@@ -33,18 +33,18 @@ TeamManager is a command-line tool that helps you explore and manage your Launch
 ### Prerequisites
 - Python 3.7+
 - LaunchDarkly API access token
-- Required dependencies (see `requirements.txt`)
 
 ### Setup
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd team-role-updater
+cd Automation
 ```
 
-2. Install dependencies:
+2. Install dependencies and activate virtual environment
 ```bash
-pip install -r requirements.txt
+./setup.sh
+source venv/bin/activate
 ```
 
 3. Set up your LaunchDarkly API key:
@@ -57,23 +57,32 @@ echo "LAUNCHDARKLY_API_KEY=sdk-your-api-key-here" > .env
 ```
 
 ## Quick Start
+> The following commands are ran in `Automation/team_manger` directory. To run from `Automation` directory simply use `team-manager <options>`
 
 ### Basic Team Analysis
 ```bash
 # Generate team coverage report
 python -m team_manager.main --report
+  or
+team-manager --report
 
 # List teams without roles
 python -m team_manager.main --teams-without-roles
+  or
+team-manager --teams-without-roles
 
-# Show role distribution
+# Show role distribution/assignment across teams
 python -m team_manager.main --role-distribution
+  or
+team-manager --role-distribution
 
-# Export detailed report
+# Generate  detailed report to file
 python -m team_manager.main --export
+  or
+team-manager --export  
 ```
 
-### Template Analysis
+### Role-scoped Policy Analysis
 ```bash
 # Analyze a template for roleAttribute patterns
 python -m team_manager.main --analyze-template template.json
@@ -85,10 +94,10 @@ python -m team_manager.main --analyze-template template.json
 
 ```bash
 # Generate patches for all teams with roles
-python -m team_manager.main --generate-patches template.json
+python -m team_manager.main --generate-patches role-scoped-policy.json
 
 # Generate patches for specific teams
-python -m team_manager.main --generate-patches template.json --teams team-1 team-2
+python -m team_manager.main --generate-patches role-scoped-policy.json --teams team-1 team-2
 
 # Generate patches using remote template (custom role from LaunchDarkly)
 python -m team_manager.main --generate-patches my-role-key --remote-template

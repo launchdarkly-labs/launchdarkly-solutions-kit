@@ -37,7 +37,7 @@ Comprehensive LaunchDarkly team management tool for analyzing, optimizing, and m
 **Key Features:**
 - **Team Analysis**: Coverage reports and role distribution insights
 - **Assignment Suggestions**: Recommendations for optimizing role assignments
-- **Template Analysis**: Discover role attribute patterns and placeholders
+- **Template Analysis**: Discover role attribute patterns and placeholders in role scoped policy
 - **Patch Generation**: Automated patch creation and application
 - **Batch Processing**: Apply changes to multiple teams simultaneously
 - **Export Capabilities**: Generate detailed JSON reports
@@ -45,7 +45,7 @@ Comprehensive LaunchDarkly team management tool for analyzing, optimizing, and m
 **Use Cases:**
 - Analyzing team role coverage and distribution
 - Optimizing role assignments across teams
-- Managing template-based role deployments
+- Managing template-based(role-scoped policy) role deployments
 - Bulk updating team roles and permissions
 
 **Quick Usage:**
@@ -151,13 +151,14 @@ policy-linter --fix
 ### Team Role Optimization Workflow
 ```bash
 # 1. Analyze current team structure
-team-manager --analyze-teams
+team-manager --report
 
-# 2. Generate optimization patches
-team-manager --generate-patch --template-role "admin-template"
+# 2. Generate  patches for role scoped policy
+team-manager --generate-patches < Sample role scoped policy JSON >
 
 # 3. Apply patches to teams
-team-manager --apply-patch
+team-manager --apply-patches  <[team1 team2 team-N]>
+team-manager --apply-patches  <team> --patch-dir <patch directory> --comment "applying patches"
 ```
 
 

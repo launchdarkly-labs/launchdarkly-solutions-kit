@@ -70,7 +70,8 @@ class RoleAttributeExtractor:
         
         attribute_values = {}
         policy = role_data.get('policy', [])
-        
+        print (f"1111 Policy: {policy}")
+        print (f"2222 Attribute Patterns: {attribute_patterns}")
         # Initialize sets for all discovered attributes
         for attr_key in attribute_patterns:
             attribute_values[attr_key] = set()
@@ -79,13 +80,19 @@ class RoleAttributeExtractor:
             resources = policy_statement.get('resources', [])
             if not resources:
                 continue
-
+            print (f"3333 Resources: {resources}")
             for resource in resources:
                 for attr_key, patterns in attribute_patterns.items():
                     # Use a generator expression to find the first match quickly
                     for pattern in patterns:
                         try:
+                            # Try both full match and search to handle partial patterns
                             match = re.match(pattern, resource)
+                            if not match:
+                                # If the pattern ends with $, try without it for partial matching
+                                if pattern.endswith('$'):
+                                    partial_pattern = pattern[:-1]
+                                    match = re.match(partial_pattern, resource)
                         except re.error:
                             continue  # Skip invalid regex patterns
                         if match:
@@ -98,6 +105,9 @@ class RoleAttributeExtractor:
                                 attribute_values[attr_key].add(value)
                             # Once matched, no need to check other patterns for this attr/resource
                             break
+        # Print the list of attribute values for each attribute
+        for attr_key, values in attribute_values.items():
+            print(f"4444 Attribute: {attr_key}, Values: {list(values)}")
         # Remove empty sets
         return {k: v for k, v in attribute_values.items() if v}
 
@@ -423,7 +433,6 @@ class TeamManager:
         all_template_analyses = []
         all_attribute_patterns = {}
         all_template_role_keys = []
-        
         for template_file in processed_template_files:
             template_analysis = self.analyze_template(template_file)
             all_template_analyses.append(template_analysis)
@@ -568,7 +577,6 @@ class TeamManager:
         # Analyze template
         template_analysis = self.analyze_template(template_file)
         attribute_patterns = template_analysis['attribute_patterns']
-        
         if not attribute_patterns:
             raise ValueError("No roleAttribute patterns found in template file")
         
@@ -626,7 +634,9 @@ class TeamManager:
                 # Extract values from each role assigned to this team
                 for role in team_role_objects:
                     role_values = RoleAttributeExtractor.extract_from_role_with_patterns(role, attribute_patterns)
-                    
+                    print (f"5555 Role: {role}")
+                    print (f"6666 Attribute Patterns: {attribute_patterns}")
+                    print (f"7777 Role Values: {role_values}")
                     # Merge with team collection
                     for attr_type, values in role_values.items():
                         if attr_type not in team_attribute_values:
@@ -635,7 +645,6 @@ class TeamManager:
                 
                 # Remove empty sets
                 team_attribute_values = {k: v for k, v in team_attribute_values.items() if v}
-                
                 if not team_attribute_values:
                     self.logger.warning(f"No roleAttribute values found for team '{team_key}'")
                     continue
@@ -710,8 +719,13 @@ class TeamManager:
             
         # Create addRoleAttribute instructions for each discovered attribute
         for attribute in team_attribute_values:
+            # patch_data["instructions"].append({
+            #     "kind": "addRoleAttribute",
+            #     "key": attribute,
+            #     "values": sorted(list(team_attribute_values[attribute]))
+            # })
             patch_data["instructions"].append({
-                "kind": "addRoleAttribute",
+                "kind": "updateRoleAttribute",
                 "key": attribute,
                 "values": sorted(list(team_attribute_values[attribute]))
             })
