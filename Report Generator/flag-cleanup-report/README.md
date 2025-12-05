@@ -50,12 +50,14 @@ It offers three views:
     - Flag evaluation metrics per environment
     - 7, 14, 30, 60 day total evaluation count
     - includes everything in organization view
-3. Flag Details View: Using `--flag-details <project-key>`:
+3. Flag Details View: Using `--flag-details`:
     - One row per flag per environment
     - Primary key for each flag/environment combination
     - Environment-specific flag state and status
     - Detailed evaluation metrics per environment
     - Last evaluation timestamps and days since last eval
+    - Can be used with `--project_key` for a single project or without for all projects
+    - Use `--exclude-projects` to skip specific projects when analyzing all projects
     - Ideal for per-environment analysis and database imports
 
 
@@ -171,7 +173,8 @@ Interactive mode will:
 | `--cache-ttl` | Cache lifetime in hours | 24 |
 | `--cache-dir` | Directory to store cache files | cache |
 | `--project_key`, `-p` | Specific project to analyze (includes evaluation metrics) | None |
-| `--flag-details` | Generate detailed flag report for specific project (one row per flag per environment) | None |
+| `--flag-details` | Generate detailed flag report (one row per flag per environment). Use with `--project_key` for a single project or alone for all projects | None |
+| `--exclude-projects` | Exclude specific project keys when running `--flag-details` on all projects. Can be specified multiple times | None |
 | `--tag`, `-t` | Filter by project tag(s). Can be specified multiple times | None |
 | `--list-projects` | List available projects | False |
 | `--list-tags` | List available project tags | False |
@@ -247,10 +250,18 @@ These metrics help identify flag usage, below are example patterns:
 # Generate report with evaluation metrics for specific project
 ld-cleanup-report --project_key demo-project
 
-# Generate detailed flag report (one row per flag per environment)
-ld-cleanup-report --flag-details sample-js-demo
+# Generate detailed flag report for a single project
+ld-cleanup-report --flag-details --project_key sample-js-demo
+
+# Generate detailed flag report for all projects
+ld-cleanup-report --flag-details
+
+# Generate detailed flag report for all projects excluding some
+ld-cleanup-report --flag-details --exclude-projects legacy-project --exclude-projects test-project
+
 # Generate detailed flag report with custom output file
-ld-cleanup-report --flag-details sample-js-demo --output my-flags.csv
+ld-cleanup-report --flag-details --project_key sample-js-demo --output my-flags.csv
+
 # List projects with specific tag
 ld-cleanup-report --list-projects --tag demo
 
@@ -266,12 +277,37 @@ The `--flag-details` option generates a detailed CSV report where each row repre
 - Database imports with unique primary keys
 - Filtering and querying specific flag/environment combinations
 - Tracking environment-specific evaluation metrics
-**Output Format:**
+
+**Usage Options:**
+
+1. **Single Project** (with `--project_key`):
 ```bash
-# Required: Launchdarkly Project key
-ld-cleanup-report --flag-details your-project-key
+# Generate flag details for a specific project
+ld-cleanup-report --flag-details --project_key your-project-key
 # Creates: flag_details_your-project-key.csv
 ```
+
+2. **All Projects** (without `--project_key`):
+```bash
+# Generate flag details for all projects
+ld-cleanup-report --flag-details
+# Creates: flag_details_all_projects.csv
+```
+
+3. **All Projects with Exclusions**:
+```bash
+# Generate flag details for all projects except specified ones
+ld-cleanup-report --flag-details --exclude-projects legacy-proj --exclude-projects test-proj
+# Creates: flag_details_all_projects.csv (without legacy-proj and test-proj)
+```
+
+4. **With Tag Filtering**:
+```bash
+# Generate flag details for projects with specific tags
+ld-cleanup-report --flag-details --tag production
+# Creates: flag_details_all_projects.csv (only production-tagged projects)
+```
+
 **Report Columns:**
 - `Primary_Key` - Unique identifier: `<project-key>_<environment-key>_<flag-key>`
 - `Project_Name`, `Project_Key`, `Project_Tags` - Project information
@@ -293,7 +329,13 @@ ld-cleanup-report --flag-details your-project-key
 Primary_Key,Project_Name,Project_Key,Environment_Key,Environment_Name,Flag_Key,Flag_State,7_Day_Evals
 sample-js-demo_development_my-flag,Sample JS Demo,sample-js-demo,development,Development,my-flag,On,1234
 sample-js-demo_production_my-flag,Sample JS Demo,sample-js-demo,production,Production,my-flag,Off,0
+another-project_development_feature-x,Another Project,another-project,development,Development,feature-x,On,5678
 ```
+
+**Performance Note:** When running `--flag-details` on all projects, the tool fetches evaluation metrics for every flag in every environment across all projects. This can be time-consuming for organizations with many projects. Consider using:
+- `--exclude-projects` to skip projects that don't need analysis
+- `--tag` to filter only relevant projects
+- `--cache-ttl` with a longer duration to reduce repeated API calls
 
 ## Cache Management
 

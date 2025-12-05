@@ -839,8 +839,10 @@ def parse_args():
                       help="Directory to store cache files (default: cache)")
     parser.add_argument("--environment-report", action="store_true",
                       help="Generate environment report")
-    parser.add_argument("--flag-details",
-                      help="Generate flag details report for all flags in project and environments. Requires project key to be specified.")
+    parser.add_argument("--flag-details", action="store_true",
+                      help="Generate flag details report for all flags in project and environments. Can be used with --project_key for a single project, or without for all projects.")
+    parser.add_argument("--exclude-projects", action="append",
+                      help="Exclude specific project keys when running flag-details on all projects. Can be specified multiple times.")
     
     args = parser.parse_args()
     isInvalidArgs = False
@@ -1105,17 +1107,19 @@ def generate_environment_report(data: dict, output_file: str, project_key: Optio
     print(f"Environment report generated: {output_file}")
     print(f"Total environments: {len(rows)}")
 def generate_flag_details_report(data: dict, output_file: str, ld_api: LaunchDarklyAPI, 
-                          project_key: str, force_refresh: bool = False):
+                          project_key: Optional[str] = None, force_refresh: bool = False,
+                          exclude_projects: Optional[List[str]] = None):
     """
-    Generate CSV report with detailed flag information for a specific project.
+    Generate CSV report with detailed flag information for one or more projects.
     Each row represents one flag in one environment.
     
     Args:
         data: Project and flag data from LaunchDarkly
         output_file: Path to output CSV file
         ld_api: LaunchDarklyAPI instance for fetching evaluation metrics
-        project_key: Specific project to analyze (required)
+        project_key: Optional specific project to analyze. If None, analyzes all projects.
         force_refresh: Whether to bypass cache
+        exclude_projects: Optional list of project keys to exclude from the report
     """
     # Generate timestamp in Unix epoch format (milliseconds)
     report_timestamp = int(time.time() * 1000)
@@ -1150,13 +1154,24 @@ def generate_flag_details_report(data: dict, output_file: str, ld_api: LaunchDar
     with open(output_file, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(headers)
-        target_project = next(
-            (p for p in data["projects"] if p["key"] == project_key),
-            None
-        )
-        if not target_project:
-            raise ValueError(f"Project '{project_key}' not found")
-        projects = [target_project]
+        
+        # Determine which projects to process
+        if project_key:
+            # Single project mode
+            target_project = next(
+                (p for p in data["projects"] if p["key"] == project_key),
+                None
+            )
+            if not target_project:
+                raise ValueError(f"Project '{project_key}' not found")
+            projects = [target_project]
+        else:
+            # All projects mode, with optional exclusions
+            projects = data["projects"]
+            if exclude_projects:
+                projects = [p for p in projects if p["key"] not in exclude_projects]
+                print(f"Excluding {len(data['projects']) - len(projects)} project(s): {', '.join(exclude_projects)}")
+        
         total_rows = sum(
             len(project["flags"]) * len(project["environments"]) 
             for project in projects
@@ -1499,7 +1514,9 @@ def log_command_execution(args: argparse.Namespace, log_file: str = "command_exe
     if args.cache_dir != "cache":  # Only log if non-default
         options.append(f"cache_dir={args.cache_dir}")
     if args.flag_details:
-        options.append(f"flag_details={args.flag_details}")
+        options.append("flag_details=True")
+    if args.exclude_projects:
+        options.append(f"exclude_projects={','.join(args.exclude_projects)}")
     
     options_str = "; ".join(options) if options else "none"
     
@@ -1559,10 +1576,14 @@ def main() -> int:
         
         # Handle cache purging for force refresh
         if args.force_refresh:
-            if args.project_key:
+            if args.project_key and not args.flag_details:
                 ld_api.purge_eval_cache(args.project_key)
-            elif args.flag_details:
-                ld_api.purge_eval_cache(args.flag_details)
+            elif args.flag_details and not args.project_key:
+                # When running flag details on all projects, purge all eval caches
+                ld_api.purge_eval_cache()
+            elif args.flag_details and args.project_key:
+                # When running flag details on a specific project
+                ld_api.purge_eval_cache(args.project_key)
             else:
                 ld_api.purge_eval_cache()
         
@@ -1584,22 +1605,42 @@ def main() -> int:
                 
             list_projects(ld_api, data)
             return 0
+        
+        # Handle --flag-details option
         if args.flag_details:
-            print(f"Fetching flag details for project: {args.flag_details}")
-            data = ld_api.fetch_and_cache_data(
-                force=args.force_refresh,
-                project_key=args.flag_details
-            )
-            if not data:
-                print("Failed to fetch project data")
-                return 1
-            output_file = args.output if args.output else f"flag_details_{args.flag_details}.csv"
+            if args.project_key:
+                # Single project mode
+                print(f"Fetching flag details for project: {args.project_key}")
+                data = ld_api.fetch_and_cache_data(
+                    force=args.force_refresh,
+                    project_key=args.project_key
+                )
+                if not data:
+                    print("Failed to fetch project data")
+                    return 1
+                output_file = args.output if args.output else f"flag_details_{args.project_key}.csv"
+            else:
+                # All projects mode
+                print("Fetching flag details for all projects...")
+                if args.exclude_projects:
+                    print(f"Will exclude projects: {', '.join(args.exclude_projects)}")
+                
+                data = ld_api.fetch_and_cache_data(
+                    force=args.force_refresh,
+                    tags=args.tag
+                )
+                if not data:
+                    print("Failed to fetch project data")
+                    return 1
+                output_file = args.output if args.output else "flag_details_all_projects.csv"
+            
             generate_flag_details_report(
                 data,
                 output_file,
                 ld_api,
-                args.flag_details,
-                force_refresh=args.force_refresh
+                args.project_key,
+                force_refresh=args.force_refresh,
+                exclude_projects=args.exclude_projects
             )
             return 0
         
