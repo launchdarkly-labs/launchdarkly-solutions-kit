@@ -105,9 +105,6 @@ class RoleAttributeExtractor:
                                 attribute_values[attr_key].add(value)
                             # Once matched, no need to check other patterns for this attr/resource
                             break
-        # Print the list of attribute values for each attribute
-        for attr_key, values in attribute_values.items():
-            print(f"4444 Attribute: {attr_key}, Values: {list(values)}")
         # Remove empty sets
         return {k: v for k, v in attribute_values.items() if v}
 
@@ -634,9 +631,6 @@ class TeamManager:
                 # Extract values from each role assigned to this team
                 for role in team_role_objects:
                     role_values = RoleAttributeExtractor.extract_from_role_with_patterns(role, attribute_patterns)
-                    print (f"5555 Role: {role}")
-                    print (f"6666 Attribute Patterns: {attribute_patterns}")
-                    print (f"7777 Role Values: {role_values}")
                     # Merge with team collection
                     for attr_type, values in role_values.items():
                         if attr_type not in team_attribute_values:
