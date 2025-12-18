@@ -47,6 +47,12 @@ This repository is maintained by the LaunchDarkly Professional Services team, bu
 | 🚧 **Coming Soon** | Sample implementations and guidelines for common LaunchDarkly use cases |
 | 📋 **Planned Content** | Feature flag patterns, SDK integration examples, testing strategies, and architecture guides |
 
+## Additional Tools
+
+These tools are hosted in other repositories:
+
+- [ld-util](https://github.com/launchdarkly-labs/ld-util/tree/main): Deno utilities (cli and libraries) for common tasks with the LaunchDarkly API
+
 ## Getting Started
 
 ### Quick Setup for Automation
