@@ -400,7 +400,8 @@ class TeamManager:
 
     def generate_team_patches_multi_template(self, template_files: List[str], team_keys: Optional[List[str]] = None, 
                                             output_dir: str = "output/patches", is_remote_template: bool = False,
-                                            template_cache_dir: str = "output/template") -> Dict:
+                                            template_cache_dir: str = "output/template",
+                                            use_cache: bool = False) -> Dict:
         """
         Generate consolidated patch files for teams based on multiple templates and their assigned roles
         
@@ -410,6 +411,7 @@ class TeamManager:
             output_dir (str): Directory to save patch files
             is_remote_template (bool): Whether to fetch templates remotely by role key
             template_cache_dir (str): Directory to save remote templates
+            use_cache (bool): Whether to use cached team data (default: False, fetches fresh data)
             
         Returns:
             Dict: Results of patch generation including generated files and statistics
@@ -448,8 +450,8 @@ class TeamManager:
         if not all_attribute_patterns:
             raise ValueError("No roleAttribute patterns found in any template files")
         
-        # Load team data
-        data = self.load_team_data()
+        # Load team data (use_cache controls whether to fetch fresh data)
+        data = self.load_team_data(use_cache=use_cache)
         
         # Determine teams to process
         if team_keys is None:
@@ -516,10 +518,14 @@ class TeamManager:
                     self.logger.warning(f"No roleAttribute values found for team '{team_key}'")
                     continue
                 
+                # Get existing role attributes for this team
+                existing_role_attributes = team_data.get('roleAttributes', {})
+                
                 # Create consolidated patch file with all templates
                 patch_filepath = self._create_team_patch_file(
                     processed_template_files, all_template_role_keys, team_key, 
-                    team_role_objects, team_attribute_values, output_dir
+                    team_role_objects, team_attribute_values, output_dir,
+                    existing_role_attributes
                 )
                 
                 generated_patches.append({
@@ -551,7 +557,8 @@ class TeamManager:
 
     def generate_team_patches(self, template_file: str, team_keys: Optional[List[str]] = None, 
                              output_dir: str = "output/patches", is_remote_template: bool = False,
-                             template_cache_dir: str = "output/template") -> Dict:
+                             template_cache_dir: str = "output/template",
+                             use_cache: bool = False) -> Dict:
         """
         Generate patch files for teams based on a template and their assigned roles
         
@@ -561,6 +568,7 @@ class TeamManager:
             output_dir (str): Directory to save patch files
             is_remote_template (bool): Whether to fetch template remotely by role key
             template_cache_dir (str): Directory to save remote templates
+            use_cache (bool): Whether to use cached team data (default: False, fetches fresh data)
             
         Returns:
             Dict: Results of patch generation including generated files and statistics
@@ -577,8 +585,8 @@ class TeamManager:
         if not attribute_patterns:
             raise ValueError("No roleAttribute patterns found in template file")
         
-        # Load team data
-        data = self.load_team_data()
+        # Load team data (use_cache controls whether to fetch fresh data)
+        data = self.load_team_data(use_cache=use_cache)
         
         # Determine teams to process
         if team_keys is None:
@@ -643,10 +651,13 @@ class TeamManager:
                     self.logger.warning(f"No roleAttribute values found for team '{team_key}'")
                     continue
                 
+                # Get existing role attributes for this team
+                existing_role_attributes = team_data.get('roleAttributes', {})
+                
                 # Create patch file
                 patch_filepath = self._create_team_patch_file(
                     [template_file], [template_analysis['role_key']], team_key, team_role_objects, 
-                    team_attribute_values, output_dir
+                    team_attribute_values, output_dir, existing_role_attributes
                 )
                 
                 generated_patches.append({
@@ -676,7 +687,8 @@ class TeamManager:
     def _create_team_patch_file(self, template_sources: List[str], template_role_keys: List[str], 
                                team_key: str, team_roles: List[Dict], 
                                team_attribute_values: Dict[str, Set[str]], 
-                               output_dir: str) -> str:
+                               output_dir: str,
+                               existing_role_attributes: Optional[Dict] = None) -> str:
         """
         Create and save patch file for a specific team
         
@@ -687,10 +699,13 @@ class TeamManager:
             team_roles (List[Dict]): Team's role objects
             team_attribute_values (Dict): Extracted attribute values
             output_dir (str): Output directory
+            existing_role_attributes (Dict, optional): Team's existing role attributes from API
             
         Returns:
             str: Path to created patch file
         """
+        if existing_role_attributes is None:
+            existing_role_attributes = {}
         os.makedirs(output_dir, exist_ok=True)
         
         # Create patch data for this team
@@ -711,15 +726,21 @@ class TeamManager:
                 "values": sorted(list(set(template_role_keys)))  # Remove duplicates and sort
             })
             
-        # Create addRoleAttribute instructions for each discovered attribute
+        # Create role attribute instructions for each discovered attribute
+        # Use updateRoleAttribute if the attribute already exists on the team,
+        # otherwise use addRoleAttribute to create it
+        existing_attr_keys = set(existing_role_attributes.keys()) if existing_role_attributes else set()
+        
         for attribute in team_attribute_values:
-            # patch_data["instructions"].append({
-            #     "kind": "addRoleAttribute",
-            #     "key": attribute,
-            #     "values": sorted(list(team_attribute_values[attribute]))
-            # })
+            if attribute in existing_attr_keys:
+                # Attribute exists - use updateRoleAttribute to replace values
+                instruction_kind = "updateRoleAttribute"
+            else:
+                # Attribute doesn't exist - use addRoleAttribute to create it
+                instruction_kind = "addRoleAttribute"
+            
             patch_data["instructions"].append({
-                "kind": "updateRoleAttribute",
+                "kind": instruction_kind,
                 "key": attribute,
                 "values": sorted(list(team_attribute_values[attribute]))
             })

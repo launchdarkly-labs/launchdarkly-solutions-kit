@@ -26,6 +26,8 @@ TeamManager is a command-line tool that helps you explore and manage your Launch
 - **Batch Processing**: Apply patches to multiple teams simultaneously
 - **Smart File Selection**: Automatically uses the latest patch file when multiple exist
 - **Attribute Validation**: Validate that teams have all required attributes before patch generation
+- **Smart Instruction Selection**: Automatically chooses between `addRoleAttribute` (for new attributes) and `updateRoleAttribute` (for existing attributes) based on the team's current state
+- **Fresh Data by Default**: Patch generation always fetches fresh team data to ensure accurate role attribute detection
 ![Patch Generation Example](./assets/teamManager-generatePatch.png)
 
 ## Installation
@@ -224,7 +226,7 @@ Generated Patches:
 - `--teams TEAM_KEY [TEAM_KEY ...]`, `-t`: Specify teams to process
 
 #### **Configuration Options**
-- `--no-cache`: Force fresh data fetch from API (ignore cache)
+- `--no-cache`: Force fresh data fetch from API (ignore cache). Note: Patch generation always fetches fresh data by default to ensure accurate role attribute detection.
 - `--output-dir`: Directory for report files (default: `output/reports`)
 - `--patch-output-dir`: Directory for patch files (default: `output/patches`)
 - `--patch-dir`: Directory containing patch files for application (default: `output/patches`)
@@ -335,10 +337,21 @@ team_manager/
       "kind": "addRoleAttribute",
       "key": "projectKey",
       "values": ["project-alpha", "project-beta"]
+    },
+    {
+      "kind": "updateRoleAttribute",
+      "key": "environmentKey",
+      "values": ["development", "staging"]
     }
   ]
 }
 ```
+
+**Note on Role Attribute Instructions:**
+- `addRoleAttribute`: Used when the team does NOT have this role attribute yet (creates new)
+- `updateRoleAttribute`: Used when the team already HAS this role attribute (replaces values)
+
+TeamManager automatically detects the team's existing role attributes and selects the appropriate instruction type.
 
 ## Advanced Features
 
@@ -466,37 +479,41 @@ Error: Unable to fetch remote template 'role-key': [API Error]
 - Check API key permissions
 - Ensure network connectivity
 
-#### **Role Attribute Already Exists Error**
-```bash
-Failed Patch Applications:
-  • s-team-2: cannot add role attribute: role attribute key 'projectKey' already exists
-    Patch File: s-team-2_20250728_124047_patch.json
+#### **Smart Role Attribute Handling**
+
+TeamManager now automatically handles both new and existing role attributes:
+
+- **New Attributes**: Uses `addRoleAttribute` instruction when the team doesn't have the attribute yet
+- **Existing Attributes**: Uses `updateRoleAttribute` instruction when the team already has the attribute
+
+This eliminates the common "role attribute already exists" error by intelligently selecting the appropriate instruction based on the team's current state.
+
+**How it works:**
+1. When generating patches, TeamManager fetches fresh team data from the API (by default)
+2. It checks each team's existing `roleAttributes`
+3. For each attribute to be set:
+   - If the attribute exists → uses `updateRoleAttribute` (replaces values)
+   - If the attribute doesn't exist → uses `addRoleAttribute` (creates new)
+
+**Example generated patch with mixed instructions:**
+```json
+{
+  "instructions": [
+    {
+      "kind": "addRoleAttribute",
+      "key": "projectKey",
+      "values": ["project-alpha"]
+    },
+    {
+      "kind": "updateRoleAttribute", 
+      "key": "environmentKey",
+      "values": ["staging", "production"]
+    }
+  ]
+}
 ```
 
-**What this means**: The team already has a role attribute with the specified key defined. TeamManager cannot overwrite existing role attributes for safety reasons.
-
-**Solutions**:
-
-**Option 1: Check Current Attributes**
-```bash
-# View team's current role attributes
-python -m team_manager.main --report
-# Look for the team and check its "Role Attributes" section
-```
-
-**Option 2: Manual Attribute Management**
-- Remove the existing attribute in LaunchDarkly UI if it needs to be replaced
-- Update the existing attribute value directly in LaunchDarkly if modification is needed
-- Use a different attribute key in your template if this is a naming conflict
-
-**Option 3: Skip Conflicting Teams**
-```bash
-# Apply patches only to teams without conflicts
-python -m team_manager.main --apply-patches team-1 team-3 team-4
-# Exclude teams that show attribute conflicts
-```
-
-**Prevention**: Always check existing team role attributes before generating patches for teams that already have established role configurations.
+In this example, `projectKey` is new (will be added) while `environmentKey` already exists (will be updated).
 
 ### **Debug Mode**
 Use `--debug` flag for detailed logging:
