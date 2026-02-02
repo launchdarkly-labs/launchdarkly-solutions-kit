@@ -253,7 +253,8 @@ Examples:
                         team_keys=args.teams,
                         output_dir=args.patch_output_dir,
                         is_remote_template=args.remote_template,
-                        template_cache_dir=args.template_cache_dir
+                        template_cache_dir=args.template_cache_dir,
+                        use_cache=not args.no_cache
                     )
                     
                     template_analysis = results['template_analysis']
@@ -269,9 +270,17 @@ Examples:
                     print(f"Patch Generation Results:")
                     print(f"  Teams Processed: {results['teams_processed']}")
                     print(f"  Patches Generated: {results['patches_generated']}")
+                    print(f"  Skipped Teams: {len(results.get('skipped_teams', []))}")
                     print(f"  Failed Teams: {len(results['failed_teams'])}")
                     print(f"  Output Directory: {results['output_directory']}")
                     print()
+                    
+                    # Show skipped teams with reasons
+                    if results.get('skipped_teams'):
+                        print(f"Skipped Teams:")
+                        for skipped in results['skipped_teams']:
+                            print(f"  • {skipped['team_key']}: {skipped['message']}")
+                        print()
                     
                     if results['generated_patches']:
                         print(f"Generated Patches:")
@@ -292,8 +301,8 @@ Examples:
                     
                     if results['failed_teams']:
                         print(f"Failed Teams:")
-                        for team in results['failed_teams']:
-                            print(f"  • {team}")
+                        for failed in results['failed_teams']:
+                            print(f"  • {failed['team_key']}: {failed['message']}")
                         print()
                 else:
                     # Multiple templates - use consolidated method
@@ -304,7 +313,8 @@ Examples:
                         team_keys=args.teams,
                         output_dir=args.patch_output_dir,
                         is_remote_template=args.remote_template,
-                        template_cache_dir=args.template_cache_dir
+                        template_cache_dir=args.template_cache_dir,
+                        use_cache=not args.no_cache
                     )
                     
                     print(f"Templates Processed: {results['templates_processed']}")
@@ -322,9 +332,17 @@ Examples:
                     print(f"Consolidated Patch Generation Results:")
                     print(f"  Teams Processed: {results['teams_processed']}")
                     print(f"  Patches Generated: {results['patches_generated']}")
+                    print(f"  Skipped Teams: {len(results.get('skipped_teams', []))}")
                     print(f"  Failed Teams: {len(results['failed_teams'])}")
                     print(f"  Output Directory: {results['output_directory']}")
                     print()
+                    
+                    # Show skipped teams with reasons
+                    if results.get('skipped_teams'):
+                        print(f"Skipped Teams:")
+                        for skipped in results['skipped_teams']:
+                            print(f"  • {skipped['team_key']}: {skipped['message']}")
+                        print()
                     
                     # Get all unique attributes across all templates
                     all_unique_attrs = set()
@@ -351,8 +369,8 @@ Examples:
                     
                     if results['failed_teams']:
                         print(f"Failed Teams:")
-                        for team in results['failed_teams']:
-                            print(f"  • {team}")
+                        for failed in results['failed_teams']:
+                            print(f"  • {failed['team_key']}: {failed['message']}")
                         print()
                         
             except (FileNotFoundError, ValueError) as e:
@@ -416,10 +434,11 @@ Examples:
                 print(f"Error: {e}")
                 sys.exit(1)
         
-        # Load data for other operations (skip if only doing template analysis or patch application)
-        if not ((args.analyze_template or args.apply_patches) and not any([args.report, args.export, args.teams_without_roles, 
-                                                  args.teams_with_roles, args.role_distribution, 
-                                                  args.suggestions, args.generate_patches])):
+        # Load data for other operations (only if needed - skip for template analysis, patch generation, or patch application)
+        needs_data_load = any([args.report, args.export, args.teams_without_roles,
+                              args.teams_with_roles, args.role_distribution, args.suggestions])
+        
+        if needs_data_load:
             use_cache = not args.no_cache
             data = team_manager.load_team_data(use_cache=use_cache)
             

@@ -66,33 +66,33 @@ class RoleAttributeExtractor:
 
     @staticmethod
     def extract_from_role_with_patterns(role_data: Dict, attribute_patterns: Dict[str, List[str]]) -> Dict[str, Set[str]]:
-        """Extract actual values from role resources using discovered patterns"""
+        """Extract actual values from role resources using discovered patterns
+        
+        Checks both 'resources' and 'notResources' fields in policy statements.
+        """
         
         attribute_values = {}
         policy = role_data.get('policy', [])
-        print (f"1111 Policy: {policy}")
-        print (f"2222 Attribute Patterns: {attribute_patterns}")
+        
         # Initialize sets for all discovered attributes
         for attr_key in attribute_patterns:
             attribute_values[attr_key] = set()
         
         for policy_statement in policy:
+            # Check both 'resources' and 'notResources' fields
             resources = policy_statement.get('resources', [])
-            if not resources:
+            not_resources = policy_statement.get('notResources', [])
+            all_resources = resources + not_resources
+            
+            if not all_resources:
                 continue
-            print (f"3333 Resources: {resources}")
-            for resource in resources:
+
+            for resource in all_resources:
                 for attr_key, patterns in attribute_patterns.items():
                     # Use a generator expression to find the first match quickly
                     for pattern in patterns:
                         try:
-                            # Try both full match and search to handle partial patterns
                             match = re.match(pattern, resource)
-                            if not match:
-                                # If the pattern ends with $, try without it for partial matching
-                                if pattern.endswith('$'):
-                                    partial_pattern = pattern[:-1]
-                                    match = re.match(partial_pattern, resource)
                         except re.error:
                             continue  # Skip invalid regex patterns
                         if match:
@@ -400,8 +400,7 @@ class TeamManager:
 
     def generate_team_patches_multi_template(self, template_files: List[str], team_keys: Optional[List[str]] = None, 
                                             output_dir: str = "output/patches", is_remote_template: bool = False,
-                                            template_cache_dir: str = "output/template",
-                                            use_cache: bool = False) -> Dict:
+                                            template_cache_dir: str = "output/template", use_cache: bool = True) -> Dict:
         """
         Generate consolidated patch files for teams based on multiple templates and their assigned roles
         
@@ -411,7 +410,7 @@ class TeamManager:
             output_dir (str): Directory to save patch files
             is_remote_template (bool): Whether to fetch templates remotely by role key
             template_cache_dir (str): Directory to save remote templates
-            use_cache (bool): Whether to use cached team data (default: False, fetches fresh data)
+            use_cache (bool): Whether to use cached team data (default: True)
             
         Returns:
             Dict: Results of patch generation including generated files and statistics
@@ -432,6 +431,7 @@ class TeamManager:
         all_template_analyses = []
         all_attribute_patterns = {}
         all_template_role_keys = []
+        
         for template_file in processed_template_files:
             template_analysis = self.analyze_template(template_file)
             all_template_analyses.append(template_analysis)
@@ -450,7 +450,7 @@ class TeamManager:
         if not all_attribute_patterns:
             raise ValueError("No roleAttribute patterns found in any template files")
         
-        # Load team data (use_cache controls whether to fetch fresh data)
+        # Load team data (refresh cache first if use_cache=False)
         data = self.load_team_data(use_cache=use_cache)
         
         # Determine teams to process
@@ -463,7 +463,8 @@ class TeamManager:
         roles_lookup = {role['key']: role for role in all_roles}
         
         generated_patches = []
-        failed_teams = []
+        failed_teams = []  # Track failed teams with reasons
+        skipped_teams = []  # Track skipped teams with reasons
         
         for team_key in team_keys:
             try:
@@ -476,12 +477,21 @@ class TeamManager:
                 
                 if not team_data:
                     self.logger.warning(f"Team '{team_key}' not found")
-                    failed_teams.append(team_key)
+                    failed_teams.append({
+                        'team_key': team_key,
+                        'reason': 'team_not_found',
+                        'message': 'Team not found in LaunchDarkly (check team key spelling or refresh cache with --no-cache)'
+                    })
                     continue
                 
                 team_roles = team_data.get('roles', [])
                 if not team_roles:
                     self.logger.warning(f"Team '{team_key}' has no assigned roles")
+                    skipped_teams.append({
+                        'team_key': team_key,
+                        'reason': 'no_assigned_roles',
+                        'message': 'Team has no assigned roles to extract roleAttribute values from'
+                    })
                     continue
                 
                 # Get full role data
@@ -492,6 +502,11 @@ class TeamManager:
                 
                 if not team_role_objects:
                     self.logger.warning(f"No role objects found for team '{team_key}'")
+                    skipped_teams.append({
+                        'team_key': team_key,
+                        'reason': 'no_role_objects',
+                        'message': 'Role data not found in cache for assigned roles'
+                    })
                     continue
                 
                 # Extract roleAttribute values from team's roles using all patterns
@@ -515,17 +530,16 @@ class TeamManager:
                 team_attribute_values = {k: v for k, v in team_attribute_values.items() if v}
                 
                 if not team_attribute_values:
-                    self.logger.warning(f"No roleAttribute values found for team '{team_key}'")
-                    continue
+                    self.logger.info(f"No roleAttribute values found for team '{team_key}', generating patch with template roles only")
                 
-                # Get existing role attributes for this team
+                # Get team's existing roleAttributes
                 existing_role_attributes = team_data.get('roleAttributes', {})
                 
                 # Create consolidated patch file with all templates
                 patch_filepath = self._create_team_patch_file(
                     processed_template_files, all_template_role_keys, team_key, 
                     team_role_objects, team_attribute_values, output_dir,
-                    existing_role_attributes
+                    existing_role_attributes=existing_role_attributes
                 )
                 
                 generated_patches.append({
@@ -539,7 +553,11 @@ class TeamManager:
                 
             except Exception as e:
                 self.logger.error(f"Failed to process team '{team_key}': {e}")
-                failed_teams.append(team_key)
+                failed_teams.append({
+                    'team_key': team_key,
+                    'reason': 'exception',
+                    'message': str(e)
+                })
         
         return {
             'template_analyses': all_template_analyses,
@@ -547,6 +565,7 @@ class TeamManager:
             'teams_processed': len(team_keys),
             'patches_generated': len(generated_patches),
             'failed_teams': failed_teams,
+            'skipped_teams': skipped_teams,
             'generated_patches': generated_patches,
             'output_directory': output_dir,
             'remote_template_used': is_remote_template,
@@ -557,8 +576,7 @@ class TeamManager:
 
     def generate_team_patches(self, template_file: str, team_keys: Optional[List[str]] = None, 
                              output_dir: str = "output/patches", is_remote_template: bool = False,
-                             template_cache_dir: str = "output/template",
-                             use_cache: bool = False) -> Dict:
+                             template_cache_dir: str = "output/template", use_cache: bool = True) -> Dict:
         """
         Generate patch files for teams based on a template and their assigned roles
         
@@ -568,7 +586,7 @@ class TeamManager:
             output_dir (str): Directory to save patch files
             is_remote_template (bool): Whether to fetch template remotely by role key
             template_cache_dir (str): Directory to save remote templates
-            use_cache (bool): Whether to use cached team data (default: False, fetches fresh data)
+            use_cache (bool): Whether to use cached team data (default: True)
             
         Returns:
             Dict: Results of patch generation including generated files and statistics
@@ -582,10 +600,11 @@ class TeamManager:
         # Analyze template
         template_analysis = self.analyze_template(template_file)
         attribute_patterns = template_analysis['attribute_patterns']
+        
         if not attribute_patterns:
             raise ValueError("No roleAttribute patterns found in template file")
         
-        # Load team data (use_cache controls whether to fetch fresh data)
+        # Load team data (refresh cache first if use_cache=False)
         data = self.load_team_data(use_cache=use_cache)
         
         # Determine teams to process
@@ -598,7 +617,8 @@ class TeamManager:
         roles_lookup = {role['key']: role for role in all_roles}
         
         generated_patches = []
-        failed_teams = []
+        failed_teams = []  # Track failed teams with reasons
+        skipped_teams = []  # Track skipped teams with reasons
         
         for team_key in team_keys:
             try:
@@ -611,12 +631,21 @@ class TeamManager:
                 
                 if not team_data:
                     self.logger.warning(f"Team '{team_key}' not found")
-                    failed_teams.append(team_key)
+                    failed_teams.append({
+                        'team_key': team_key,
+                        'reason': 'team_not_found',
+                        'message': 'Team not found in LaunchDarkly (check team key spelling or refresh cache with --no-cache)'
+                    })
                     continue
                 
                 team_roles = team_data.get('roles', [])
                 if not team_roles:
                     self.logger.warning(f"Team '{team_key}' has no assigned roles")
+                    skipped_teams.append({
+                        'team_key': team_key,
+                        'reason': 'no_assigned_roles',
+                        'message': 'Team has no assigned roles to extract roleAttribute values from'
+                    })
                     continue
                 
                 # Get full role data
@@ -627,6 +656,11 @@ class TeamManager:
                 
                 if not team_role_objects:
                     self.logger.warning(f"No role objects found for team '{team_key}'")
+                    skipped_teams.append({
+                        'team_key': team_key,
+                        'reason': 'no_role_objects',
+                        'message': 'Role data not found in cache for assigned roles'
+                    })
                     continue
                 
                 # Extract roleAttribute values from team's roles
@@ -639,6 +673,7 @@ class TeamManager:
                 # Extract values from each role assigned to this team
                 for role in team_role_objects:
                     role_values = RoleAttributeExtractor.extract_from_role_with_patterns(role, attribute_patterns)
+                    
                     # Merge with team collection
                     for attr_type, values in role_values.items():
                         if attr_type not in team_attribute_values:
@@ -647,17 +682,18 @@ class TeamManager:
                 
                 # Remove empty sets
                 team_attribute_values = {k: v for k, v in team_attribute_values.items() if v}
-                if not team_attribute_values:
-                    self.logger.warning(f"No roleAttribute values found for team '{team_key}'")
-                    continue
                 
-                # Get existing role attributes for this team
+                if not team_attribute_values:
+                    self.logger.info(f"No roleAttribute values found for team '{team_key}', generating patch with template roles only")
+                
+                # Get team's existing roleAttributes
                 existing_role_attributes = team_data.get('roleAttributes', {})
                 
                 # Create patch file
                 patch_filepath = self._create_team_patch_file(
                     [template_file], [template_analysis['role_key']], team_key, team_role_objects, 
-                    team_attribute_values, output_dir, existing_role_attributes
+                    team_attribute_values, output_dir,
+                    existing_role_attributes=existing_role_attributes
                 )
                 
                 generated_patches.append({
@@ -670,13 +706,18 @@ class TeamManager:
                 
             except Exception as e:
                 self.logger.error(f"Failed to process team '{team_key}': {e}")
-                failed_teams.append(team_key)
+                failed_teams.append({
+                    'team_key': team_key,
+                    'reason': 'exception',
+                    'message': str(e)
+                })
         
         return {
             'template_analysis': template_analysis,
             'teams_processed': len(team_keys),
             'patches_generated': len(generated_patches),
             'failed_teams': failed_teams,
+            'skipped_teams': skipped_teams,
             'generated_patches': generated_patches,
             'output_directory': output_dir,
             'remote_template_used': is_remote_template,
@@ -687,8 +728,7 @@ class TeamManager:
     def _create_team_patch_file(self, template_sources: List[str], template_role_keys: List[str], 
                                team_key: str, team_roles: List[Dict], 
                                team_attribute_values: Dict[str, Set[str]], 
-                               output_dir: str,
-                               existing_role_attributes: Optional[Dict] = None) -> str:
+                               output_dir: str, existing_role_attributes: Optional[Dict] = None) -> str:
         """
         Create and save patch file for a specific team
         
@@ -699,14 +739,16 @@ class TeamManager:
             team_roles (List[Dict]): Team's role objects
             team_attribute_values (Dict): Extracted attribute values
             output_dir (str): Output directory
-            existing_role_attributes (Dict, optional): Team's existing role attributes from API
+            existing_role_attributes (Dict, optional): Team's existing roleAttributes
             
         Returns:
             str: Path to created patch file
         """
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Default to empty dict if not provided
         if existing_role_attributes is None:
             existing_role_attributes = {}
-        os.makedirs(output_dir, exist_ok=True)
         
         # Create patch data for this team
         patch_data = {
@@ -716,31 +758,27 @@ class TeamManager:
             "created_at": datetime.now().isoformat(),
             "roles_analyzed": [role.get('key', 'unknown') for role in team_roles],
             "extracted_values": {k: sorted(list(v)) for k, v in team_attribute_values.items()},
+            "existing_role_attributes": existing_role_attributes,
             "instructions": []
         }
         
         # Add all template role keys to addCustomRoles instruction
-        if team_attribute_values and template_role_keys:
+        if template_role_keys:
             patch_data["instructions"].append({
                 "kind": "addCustomRoles",
                 "values": sorted(list(set(template_role_keys)))  # Remove duplicates and sort
             })
             
-        # Create role attribute instructions for each discovered attribute
-        # Use updateRoleAttribute if the attribute already exists on the team,
-        # otherwise use addRoleAttribute to create it
-        existing_attr_keys = set(existing_role_attributes.keys()) if existing_role_attributes else set()
-        
+        # Create add/update RoleAttribute instructions for each discovered attribute
         for attribute in team_attribute_values:
-            if attribute in existing_attr_keys:
-                # Attribute exists - use updateRoleAttribute to replace values
-                instruction_kind = "updateRoleAttribute"
+            # Check if this attribute already exists in the team's roleAttributes
+            if attribute in existing_role_attributes:
+                kind = "updateRoleAttribute"
             else:
-                # Attribute doesn't exist - use addRoleAttribute to create it
-                instruction_kind = "addRoleAttribute"
+                kind = "addRoleAttribute"
             
             patch_data["instructions"].append({
-                "kind": instruction_kind,
+                "kind": kind,
                 "key": attribute,
                 "values": sorted(list(team_attribute_values[attribute]))
             })
@@ -912,7 +950,6 @@ class TeamManager:
                         'patch_filename': patch_info['filename']
                     })
                     self.logger.error(f"Failed to apply patch for team '{team_key}' from {patch_info['filename']}: {response.get('error')}")
-                    self.logger.error(f"payload: {json.dumps(payload, indent=2)}")
             except Exception as e:
                 results['failed_patches'].append({
                     'team_key': team_key,
