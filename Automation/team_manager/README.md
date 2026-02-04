@@ -30,6 +30,12 @@ TeamManager is a command-line tool that helps you explore and manage your Launch
 - **Fresh Data by Default**: Patch generation always fetches fresh team data to ensure accurate role attribute detection
 ![Patch Generation Example](./assets/teamManager-generatePatch.png)
 
+### **Migration Reporting**
+- **Role Migration Tracking**: Generate CSV reports to track role migration progress across teams
+- **Added/Migrated Status**: Identify which teams have been updated with target roles
+- **Role Attribute Visibility**: View all role attribute keys and values for each team
+- **Batch Analysis**: Analyze migration status for multiple roles at once
+
 ## Installation
 
 ### Prerequisites
@@ -90,6 +96,18 @@ team-manager --export
 python -m team_manager.main --analyze-template template.json
 
 # Example output shows discovered attributes and patterns
+```
+
+### Migration Report
+```bash
+# Generate a migration report checking if teams have specific roles
+python -m team_manager.main --migration-report --roles role-key-1 role-key-2
+  or
+team-manager --migration-report --roles role-key-1 role-key-2
+
+# The report shows:
+# - added=True: Team has ALL specified roles
+# - migrated=True: Team has ONLY the specified roles (no other roles)
 ```
 
 ### Patch Generation & Application
@@ -225,6 +243,10 @@ Generated Patches:
 - `--apply-patches TEAM_KEY [TEAM_KEY ...]`, `-ap`: Apply patches to specified teams
 - `--teams TEAM_KEY [TEAM_KEY ...]`, `-t`: Specify teams to process
 
+#### **Migration Report Operations**
+- `--migration-report`, `-mr`: Generate a CSV migration report showing teams with specified roles
+- `--roles ROLE_KEY [ROLE_KEY ...]`: List of role keys to check in migration report (requires `--migration-report`)
+
 #### **Configuration Options**
 - `--no-cache`: Force fresh data fetch from API (ignore cache). Note: Patch generation always fetches fresh data by default to ensure accurate role attribute detection.
 - `--output-dir`: Directory for report files (default: `output/reports`)
@@ -280,6 +302,18 @@ python -m team_manager.main --generate-patches template.json
 # Apply patches to multiple teams with custom comment
 python -m team_manager.main --apply-patches team-1 team-2 team-3 \
     --comment "Quarterly role attribute update"
+```
+
+#### **5. Migration Report**
+```bash
+# Generate migration report to track which teams have target roles
+python -m team_manager.main --migration-report --roles new-developer-role new-admin-role
+
+# With fresh data (skip cache)
+python -m team_manager.main --migration-report --roles target-role --no-cache
+
+# Custom output directory
+python -m team_manager.main --migration-report --roles role-1 role-2 --output-dir ./migration-reports
 ```
 
 ## Architecture
@@ -352,6 +386,33 @@ team_manager/
 - `updateRoleAttribute`: Used when the team already HAS this role attribute (replaces values)
 
 TeamManager automatically detects the team's existing role attributes and selects the appropriate instruction type.
+
+### **Migration Reports** (`output/reports/`)
+CSV files with the following columns:
+
+| Column | Description |
+|--------|-------------|
+| `team_key` | Team identifier |
+| `team_name` | Team display name |
+| `member_count` | Number of team members |
+| `project_count` | Number of assigned projects |
+| `assigned_roles` | All roles assigned to the team (semicolon-separated) |
+| `role_attribute_keys` | roleAttribute keys (semicolon-separated) |
+| `role_attribute_values` | roleAttribute key=value pairs (semicolon-separated) |
+| `added` | `True` if team has ALL specified roles |
+| `migrated` | `True` if team has ONLY the specified roles (no other roles) |
+
+**Example CSV output:**
+```csv
+team_key,team_name,member_count,project_count,assigned_roles,role_attribute_keys,role_attribute_values,added,migrated
+dev-team-1,Development Team 1,5,3,new-developer-role,projectKey;environmentKey,projectKey=proj-a,proj-b;environmentKey=staging,True,True
+ops-team,Operations Team,3,2,new-developer-role;legacy-admin-role,projectKey,projectKey=proj-c,True,False
+```
+
+**Understanding the Status Columns:**
+- **added=True, migrated=True**: Team has been fully migrated (only has the target roles)
+- **added=True, migrated=False**: Team has the target roles but also has additional roles
+- **added=False, migrated=False**: Team does not have all the target roles yet
 
 ## Advanced Features
 
@@ -446,6 +507,25 @@ python -m team_manager.main --apply-patches $(cat teams-batch-1.txt) --debug
 
 # Monitor results and iterate
 python -m team_manager.main --report
+```
+
+### **4. Role Migration Tracking**
+```bash
+# Step 1: Generate migration report to see current state
+python -m team_manager.main --migration-report --roles new-standard-role
+
+# Step 2: Review the CSV to identify teams needing migration
+# Teams with added=False need the role assigned
+# Teams with migrated=False still have legacy roles
+
+# Step 3: Generate and apply patches for teams not yet migrated
+python -m team_manager.main --generate-patches new-standard-role --remote-template \
+    --teams team-a team-b team-c
+
+python -m team_manager.main --apply-patches team-a team-b team-c
+
+# Step 4: Re-run migration report to verify progress
+python -m team_manager.main --migration-report --roles new-standard-role --no-cache
 ```
 
 ## Troubleshooting

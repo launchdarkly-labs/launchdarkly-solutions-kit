@@ -109,6 +109,7 @@ Examples:
   team-manager --generate-patches role-key --remote-template --teams team-1 --template-cache-dir custom/templates  # Remote template with custom cache
   team-manager --apply-patches team-1 team-2  # Apply patches to specific teams
   team-manager --apply-patches team-1 --patch-dir custom/patches --comment "Custom update"  # Apply with custom options
+  team-manager --migration-report --roles role-1 role-2  # Generate migration report checking for specific roles
   team-manager --no-cache                  # Force fresh data fetch from API
         """
     )
@@ -145,6 +146,12 @@ Examples:
     parser.add_argument('--comment', default='Applied patch via TeamManager',
                         help='Comment for the patch operation')
     
+    # Migration report operations
+    parser.add_argument('--migration-report', '-mr', action='store_true',
+                        help='Generate a migration report showing teams with specified roles')
+    parser.add_argument('--roles', nargs='+', metavar='ROLE_KEY',
+                        help='List of role keys to check in migration report (requires --migration-report)')
+    
     # Options
     parser.add_argument('--no-cache', action='store_true',
                         help='Force fresh data fetch from API (ignore cache)')
@@ -173,10 +180,18 @@ Examples:
         print("Error: --remote-template can only be used with --generate-patches")
         sys.exit(1)
     
+    if args.migration_report and not args.roles:
+        print("Error: --migration-report requires --roles to specify role keys to check")
+        sys.exit(1)
+    
+    if args.roles and not args.migration_report:
+        print("Error: --roles can only be used with --migration-report")
+        sys.exit(1)
+    
     # If no specific action is provided, default to report
     if not any([args.report, args.export, args.teams_without_roles, args.teams_with_roles,
                 args.role_distribution, args.suggestions, args.analyze_template, args.generate_patches,
-                args.apply_patches]):
+                args.apply_patches, args.migration_report]):
         args.report = True
     
     # Setup logging
@@ -210,7 +225,7 @@ Examples:
                 print(f"Policy Statistics:")
                 print(f"  Total Policy Statements: {analysis['total_policy_statements']}")
                 print(f"  Total Resources: {analysis['total_resources']}")
-                print(f"  Resources with roleAttribute: {len(analysis['roleAttribute_resources'])}")
+                print(f"  Resources with git: {len(analysis['roleAttribute_resources'])}")
                 print()
                 
                 if analysis['unique_attributes']:
@@ -434,7 +449,61 @@ Examples:
                 print(f"Error: {e}")
                 sys.exit(1)
         
-        # Load data for other operations (only if needed - skip for template analysis, patch generation, or patch application)
+        # Handle migration report
+        if args.migration_report:
+            print("\n" + "="*60)
+            print("MIGRATION REPORT")
+            print("="*60)
+            
+            try:
+                print(f"Checking for roles: {', '.join(args.roles)}")
+                print()
+                
+                results = team_manager.generate_migration_report(
+                    role_keys=args.roles,
+                    output_dir=args.output_dir,
+                    use_cache=not args.no_cache
+                )
+                
+                stats = results['statistics']
+                
+                print(f"Migration Report Statistics:")
+                print(f"  Total Teams Analyzed: {stats['total_teams_analyzed']}")
+                print(f"  Teams with ALL roles (added=True): {stats['teams_added']}")
+                print(f"  Teams with ONLY these roles (migrated=True): {stats['teams_migrated']}")
+                print(f"  Teams with SOME roles (partial): {stats['teams_partial']}")
+                print(f"  Teams with NONE of these roles: {stats['teams_none']}")
+                print()
+                
+                print(f"Report saved to: {results['report_file']}")
+                print()
+                
+                # Show summary of migrated teams
+                migrated_teams = [t for t in results['teams_data'] if t['migrated']]
+                if migrated_teams:
+                    print(f"Teams fully migrated ({len(migrated_teams)}):")
+                    for team in migrated_teams[:10]:
+                        print(f"  - {team['team_name']} (key: {team['team_key']})")
+                    if len(migrated_teams) > 10:
+                        print(f"  ... and {len(migrated_teams) - 10} more")
+                    print()
+                
+                # Show summary of added (but not migrated) teams
+                added_only_teams = [t for t in results['teams_data'] if t['added'] and not t['migrated']]
+                if added_only_teams:
+                    print(f"Teams with roles added but have additional roles ({len(added_only_teams)}):")
+                    for team in added_only_teams[:10]:
+                        print(f"  - {team['team_name']} (key: {team['team_key']})")
+                        print(f"    Current roles: {team['assigned_roles']}")
+                    if len(added_only_teams) > 10:
+                        print(f"  ... and {len(added_only_teams) - 10} more")
+                    print()
+                        
+            except (FileNotFoundError, ValueError) as e:
+                print(f"Error: {e}")
+                sys.exit(1)
+        
+        # Load data for other operations (only if needed - skip for template analysis, patch generation, patch application, or migration report)
         needs_data_load = any([args.report, args.export, args.teams_without_roles,
                               args.teams_with_roles, args.role_distribution, args.suggestions])
         

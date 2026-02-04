@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import re
+import csv
 from typing import Dict, List, Optional, Set
 from datetime import datetime
 
@@ -338,6 +339,121 @@ class TeamManager:
         
         self.logger.info(f"Team report exported to: {filepath}")
         return filepath
+
+    def generate_migration_report(self, role_keys: List[str], output_dir: str = "output/reports",
+                                  use_cache: bool = True) -> Dict:
+        """
+        Generate a migration report showing teams and their role assignments with migration status.
+        
+        The report checks if teams have the specified roles assigned:
+        - 'added' = True: Team has ALL the specified roles assigned
+        - 'migrated' = True: Team has ONLY the specified roles (no other roles)
+        
+        Args:
+            role_keys (List[str]): List of role keys to check against team assignments
+            output_dir (str): Directory to save the report
+            use_cache (bool): Whether to use cached team data
+            
+        Returns:
+            Dict: Results including report filepath and statistics
+        """
+        if not role_keys:
+            raise ValueError("At least one role key must be provided")
+        
+        # Load team data
+        data = self.load_team_data(use_cache=use_cache)
+        
+        # Get all teams with roles
+        teams_with_roles = self.get_teams_with_roles(data)
+        
+        # Convert role_keys to a set for efficient comparison
+        required_roles_set = set(role_keys)
+        
+        # Prepare report data
+        report_rows = []
+        stats = {
+            'total_teams_analyzed': len(teams_with_roles),
+            'teams_added': 0,
+            'teams_migrated': 0,
+            'teams_partial': 0,
+            'teams_none': 0
+        }
+        
+        for team in teams_with_roles:
+            team_roles = set(team.get('roles', []))
+            role_attributes = team.get('roleAttributes', {})
+            
+            # Check if team has ALL specified roles (added)
+            has_all_required = required_roles_set.issubset(team_roles)
+            
+            # Check if team has ONLY the specified roles (migrated)
+            has_only_required = team_roles == required_roles_set
+            
+            # Update stats
+            if has_only_required:
+                stats['teams_migrated'] += 1
+                stats['teams_added'] += 1  # migrated implies added
+            elif has_all_required:
+                stats['teams_added'] += 1
+            elif team_roles.intersection(required_roles_set):
+                stats['teams_partial'] += 1
+            else:
+                stats['teams_none'] += 1
+            
+            # Format roleAttributes for CSV (key=value pairs)
+            role_attr_strings = []
+            for attr_key, attr_values in role_attributes.items():
+                if isinstance(attr_values, list):
+                    values_str = ','.join(str(v) for v in attr_values)
+                else:
+                    values_str = str(attr_values)
+                role_attr_strings.append(f"{attr_key}={values_str}")
+            
+            # Build row data
+            row = {
+                'team_key': team['key'],
+                'team_name': team['name'],
+                'member_count': team['member_count'],
+                'project_count': team['project_count'],
+                'assigned_roles': ';'.join(sorted(team_roles)),
+                'role_attribute_keys': ';'.join(sorted(role_attributes.keys())) if role_attributes else '',
+                'role_attribute_values': ';'.join(role_attr_strings) if role_attr_strings else '',
+                'added': has_all_required,
+                'migrated': has_only_required
+            }
+            report_rows.append(row)
+        
+        # Sort rows: migrated first, then added, then others
+        report_rows.sort(key=lambda x: (not x['migrated'], not x['added'], x['team_key']))
+        
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Generate CSV file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        csv_filename = f"migration_report_{timestamp}.csv"
+        csv_filepath = os.path.join(output_dir, csv_filename)
+        
+        # Define CSV columns
+        fieldnames = [
+            'team_key', 'team_name', 'member_count', 'project_count',
+            'assigned_roles', 'role_attribute_keys', 'role_attribute_values',
+            'added', 'migrated'
+        ]
+        
+        with open(csv_filepath, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(report_rows)
+        
+        self.logger.info(f"Migration report exported to: {csv_filepath}")
+        
+        return {
+            'report_file': csv_filepath,
+            'roles_checked': role_keys,
+            'statistics': stats,
+            'teams_data': report_rows
+        }
 
     def analyze_template(self, template_file: str) -> Dict:
         """
@@ -854,10 +970,15 @@ class TeamManager:
         
         for filename in os.listdir(patch_dir):
             if filename.endswith('_patch.json'):
-                # Extract team key from filename (format: {team_key}_{timestamp}_patch.json)
-                team_key_parts = filename.split('_')
-                if len(team_key_parts) >= 3:  # Ensure proper format
-                    team_key = team_key_parts[0]
+                # Extract team key from filename (format: {team_key}_{YYYYMMDD}_{HHMMSS}_patch.json)
+                # Team keys can contain underscores, so we parse from the end
+                base_name = filename[:-11]  # Remove '_patch.json' suffix
+                parts = base_name.rsplit('_', 2)  # Split from right, max 2 splits
+                
+                # Validate format: need exactly 3 parts (team_key, date, time)
+                # and the last two parts should be timestamp components (8 digits date, 6 digits time)
+                if len(parts) == 3 and len(parts[1]) == 8 and len(parts[2]) == 6 and parts[1].isdigit() and parts[2].isdigit():
+                    team_key = parts[0]  # Team key is everything before the timestamp
                     if team_key in team_keys:
                         filepath = os.path.join(patch_dir, filename)
                         
