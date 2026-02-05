@@ -28,6 +28,7 @@ TeamManager is a command-line tool that helps you explore and manage your Launch
 - **Attribute Validation**: Validate that teams have all required attributes before patch generation
 - **Smart Instruction Selection**: Automatically chooses between `addRoleAttribute` (for new attributes) and `updateRoleAttribute` (for existing attributes) based on the team's current state
 - **Fresh Data by Default**: Patch generation always fetches fresh team data to ensure accurate role attribute detection
+- **Automatic Cache Invalidation**: Cache is automatically cleared after patches are applied, ensuring subsequent operations use fresh data
 ![Patch Generation Example](./assets/teamManager-generatePatch.png)
 
 ### **Migration Reporting**
@@ -253,6 +254,11 @@ Generated Patches:
 - `--patch-output-dir`: Directory for patch files (default: `output/patches`)
 - `--patch-dir`: Directory containing patch files for application (default: `output/patches`)
 - `--comment`: Comment for patch operations (default: "Applied patch via TeamManager")
+
+**Cache Behavior Notes:**
+- The cache is automatically invalidated after successfully applying patches via `--apply-patches`
+- This ensures that subsequent operations (like `--migration-report`) reflect the latest changes
+- If you need fresh data without applying patches, use `--no-cache`
 
 #### **Logging Options**
 - `--debug`: Enable debug logging
@@ -525,7 +531,9 @@ python -m team_manager.main --generate-patches new-standard-role --remote-templa
 python -m team_manager.main --apply-patches team-a team-b team-c
 
 # Step 4: Re-run migration report to verify progress
-python -m team_manager.main --migration-report --roles new-standard-role --no-cache
+# Note: Cache is automatically invalidated after --apply-patches,
+# so --no-cache is not required here
+python -m team_manager.main --migration-report --roles new-standard-role
 ```
 
 ## Troubleshooting
@@ -558,6 +566,14 @@ Error: Unable to fetch remote template 'role-key': [API Error]
 - Verify the role key exists in LaunchDarkly
 - Check API key permissions
 - Ensure network connectivity
+
+#### **Stale Data After API Changes**
+If you've made changes to teams directly in LaunchDarkly (not via TeamManager) and reports show outdated data:
+```bash
+# Force fresh data fetch
+python -m team_manager.main --migration-report --roles role-key --no-cache
+```
+**Note**: This is not typically needed after using `--apply-patches`, as the cache is automatically invalidated after successful patch applications.
 
 #### **Smart Role Attribute Handling**
 

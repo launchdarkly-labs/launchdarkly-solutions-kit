@@ -282,6 +282,10 @@ Examples:
                         print(f"Remote Template: No (local file)")
                     print()
                     
+                    # Show roles to be applied
+                    print(f"Roles to be applied: {template_analysis['role_key']}")
+                    print()
+                    
                     print(f"Patch Generation Results:")
                     print(f"  Teams Processed: {results['teams_processed']}")
                     print(f"  Patches Generated: {results['patches_generated']}")
@@ -301,7 +305,7 @@ Examples:
                         print(f"Generated Patches:")
                         for patch in results['generated_patches']:
                             print(f"  • {patch['team_key']}: {patch['patch_file']}")
-                            print(f"    Roles: {', '.join(patch['roles_analyzed'])}")
+                            print(f"    Existing roles for team: {', '.join(patch['roles_analyzed']) if patch['roles_analyzed'] else '(none)'}")
                             print(f"    Attributes: {', '.join(patch['attribute_types'])}")
                             # Check for missing attributes for this team
                             missing_attrs = []
@@ -344,6 +348,11 @@ Examples:
                         print(f"Remote Templates: No (local files)")
                     print()
                     
+                    # Show roles to be applied
+                    roles_to_apply = [analysis['role_key'] for analysis in results['template_analyses']]
+                    print(f"Roles to be applied: {', '.join(roles_to_apply)}")
+                    print()
+                    
                     print(f"Consolidated Patch Generation Results:")
                     print(f"  Teams Processed: {results['teams_processed']}")
                     print(f"  Patches Generated: {results['patches_generated']}")
@@ -369,7 +378,7 @@ Examples:
                         for patch in results['generated_patches']:
                             print(f"  • {patch['team_key']}: {patch['patch_file']}")
                             print(f"    Templates Used: {', '.join(patch['templates_used'])}")
-                            print(f"    Roles: {', '.join(patch['roles_analyzed'])}")
+                            print(f"    Existing roles for team: {', '.join(patch['roles_analyzed']) if patch['roles_analyzed'] else '(none)'}")
                             print(f"    Attributes: {', '.join(patch['attribute_types'])}")
                             # Check for missing attributes for this team
                             missing_attrs = []

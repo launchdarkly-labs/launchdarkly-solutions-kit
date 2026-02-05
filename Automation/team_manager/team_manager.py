@@ -514,236 +514,43 @@ class TeamManager:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in template file: {e}")
 
-    def generate_team_patches_multi_template(self, template_files: List[str], team_keys: Optional[List[str]] = None, 
-                                            output_dir: str = "output/patches", is_remote_template: bool = False,
-                                            template_cache_dir: str = "output/template", use_cache: bool = True) -> Dict:
+    def _process_teams_for_patches(self, data: Dict, team_keys: List[str], 
+                                    attribute_patterns: Dict[str, List[str]],
+                                    template_files: List[str], template_role_keys: List[str],
+                                    output_dir: str, include_templates_used: bool = False) -> Dict:
         """
-        Generate consolidated patch files for teams based on multiple templates and their assigned roles
+        Shared internal method to process teams and generate patches.
+        
+        This method contains the common logic for team iteration, role extraction,
+        and patch generation used by both single-template and multi-template flows.
         
         Args:
-            template_files (List[str]): List of template file paths or role keys (if is_remote_template=True)
-            team_keys (List[str], optional): Specific teams to process, defaults to all teams with roles
+            data (Dict): Loaded team/role data from cache or API
+            team_keys (List[str]): List of team keys to process
+            attribute_patterns (Dict[str, List[str]]): Combined attribute patterns from templates
+            template_files (List[str]): List of template file paths
+            template_role_keys (List[str]): List of role keys from templates
             output_dir (str): Directory to save patch files
-            is_remote_template (bool): Whether to fetch templates remotely by role key
-            template_cache_dir (str): Directory to save remote templates
-            use_cache (bool): Whether to use cached team data (default: True)
+            include_templates_used (bool): Whether to include templates_used in patch results
             
         Returns:
-            Dict: Results of patch generation including generated files and statistics
+            Dict: Processing results with generated_patches, failed_teams, skipped_teams
         """
-        if not template_files:
-            raise ValueError("At least one template file must be provided")
-        
-        # Handle remote template fetching for all templates
-        processed_template_files = []
-        for template_file in template_files:
-            if is_remote_template:
-                processed_file = self._fetch_and_save_remote_template(template_file, template_cache_dir)
-                processed_template_files.append(processed_file)
-            else:
-                processed_template_files.append(template_file)
-        
-        # Analyze all templates
-        all_template_analyses = []
-        all_attribute_patterns = {}
-        all_template_role_keys = []
-        
-        for template_file in processed_template_files:
-            template_analysis = self.analyze_template(template_file)
-            all_template_analyses.append(template_analysis)
-            all_template_role_keys.append(template_analysis['role_key'])
-            
-            # Merge attribute patterns from all templates
-            template_patterns = template_analysis['attribute_patterns']
-            for attr_key, patterns in template_patterns.items():
-                if attr_key not in all_attribute_patterns:
-                    all_attribute_patterns[attr_key] = []
-                # Add patterns that don't already exist
-                for pattern in patterns:
-                    if pattern not in all_attribute_patterns[attr_key]:
-                        all_attribute_patterns[attr_key].append(pattern)
-        
-        if not all_attribute_patterns:
-            raise ValueError("No roleAttribute patterns found in any template files")
-        
-        # Load team data (refresh cache first if use_cache=False)
-        data = self.load_team_data(use_cache=use_cache)
-        
-        # Determine teams to process
-        if team_keys is None:
-            teams_with_roles = self.get_teams_with_roles(data)
-            team_keys = [team['key'] for team in teams_with_roles]
-        
         # Get all custom roles for lookup
         all_roles = data.get('roles', [])
         roles_lookup = {role['key']: role for role in all_roles}
         
+        # Build teams lookup dict once for O(1) lookups
+        teams_lookup = {team['key']: team for team in data.get('teams', [])}
+        
         generated_patches = []
-        failed_teams = []  # Track failed teams with reasons
-        skipped_teams = []  # Track skipped teams with reasons
+        failed_teams = []
+        skipped_teams = []
         
         for team_key in team_keys:
             try:
                 # Find team and its roles
-                team_data = None
-                for team in data.get('teams', []):
-                    if team['key'] == team_key:
-                        team_data = team
-                        break
-                
-                if not team_data:
-                    self.logger.warning(f"Team '{team_key}' not found")
-                    failed_teams.append({
-                        'team_key': team_key,
-                        'reason': 'team_not_found',
-                        'message': 'Team not found in LaunchDarkly (check team key spelling or refresh cache with --no-cache)'
-                    })
-                    continue
-                
-                team_roles = team_data.get('roles', [])
-                if not team_roles:
-                    self.logger.warning(f"Team '{team_key}' has no assigned roles")
-                    skipped_teams.append({
-                        'team_key': team_key,
-                        'reason': 'no_assigned_roles',
-                        'message': 'Team has no assigned roles to extract roleAttribute values from'
-                    })
-                    continue
-                
-                # Get full role data
-                team_role_objects = []
-                for role_key in team_roles:
-                    if role_key in roles_lookup:
-                        team_role_objects.append(roles_lookup[role_key])
-                
-                if not team_role_objects:
-                    self.logger.warning(f"No role objects found for team '{team_key}'")
-                    skipped_teams.append({
-                        'team_key': team_key,
-                        'reason': 'no_role_objects',
-                        'message': 'Role data not found in cache for assigned roles'
-                    })
-                    continue
-                
-                # Extract roleAttribute values from team's roles using all patterns
-                team_attribute_values = {}
-                
-                # Initialize attribute value sets for all discovered attributes
-                for attr_key in all_attribute_patterns:
-                    team_attribute_values[attr_key] = set()
-                
-                # Extract values from each role assigned to this team
-                for role in team_role_objects:
-                    role_values = RoleAttributeExtractor.extract_from_role_with_patterns(role, all_attribute_patterns)
-                    
-                    # Merge with team collection
-                    for attr_type, values in role_values.items():
-                        if attr_type not in team_attribute_values:
-                            team_attribute_values[attr_type] = set()
-                        team_attribute_values[attr_type].update(values)
-                
-                # Remove empty sets
-                team_attribute_values = {k: v for k, v in team_attribute_values.items() if v}
-                
-                if not team_attribute_values:
-                    self.logger.info(f"No roleAttribute values found for team '{team_key}', generating patch with template roles only")
-                
-                # Get team's existing roleAttributes
-                existing_role_attributes = team_data.get('roleAttributes', {})
-                
-                # Create consolidated patch file with all templates
-                patch_filepath = self._create_team_patch_file(
-                    processed_template_files, all_template_role_keys, team_key, 
-                    team_role_objects, team_attribute_values, output_dir,
-                    existing_role_attributes=existing_role_attributes
-                )
-                
-                generated_patches.append({
-                    'team_key': team_key,
-                    'patch_file': patch_filepath,
-                    'roles_analyzed': [role.get('key', 'unknown') for role in team_role_objects],
-                    'attribute_types': list(team_attribute_values.keys()),
-                    'extracted_values': {k: sorted(list(v)) for k, v in team_attribute_values.items()},
-                    'templates_used': all_template_role_keys
-                })
-                
-            except Exception as e:
-                self.logger.error(f"Failed to process team '{team_key}': {e}")
-                failed_teams.append({
-                    'team_key': team_key,
-                    'reason': 'exception',
-                    'message': str(e)
-                })
-        
-        return {
-            'template_analyses': all_template_analyses,
-            'templates_processed': len(template_files),
-            'teams_processed': len(team_keys),
-            'patches_generated': len(generated_patches),
-            'failed_teams': failed_teams,
-            'skipped_teams': skipped_teams,
-            'generated_patches': generated_patches,
-            'output_directory': output_dir,
-            'remote_template_used': is_remote_template,
-            'template_files_used': processed_template_files,
-            'template_cache_directory': template_cache_dir if is_remote_template else None,
-            'combined_attribute_patterns': all_attribute_patterns
-        }
-
-    def generate_team_patches(self, template_file: str, team_keys: Optional[List[str]] = None, 
-                             output_dir: str = "output/patches", is_remote_template: bool = False,
-                             template_cache_dir: str = "output/template", use_cache: bool = True) -> Dict:
-        """
-        Generate patch files for teams based on a template and their assigned roles
-        
-        Args:
-            template_file (str): Path to the template role file or role key (if is_remote_template=True)
-            team_keys (List[str], optional): Specific teams to process, defaults to all teams with roles
-            output_dir (str): Directory to save patch files
-            is_remote_template (bool): Whether to fetch template remotely by role key
-            template_cache_dir (str): Directory to save remote templates
-            use_cache (bool): Whether to use cached team data (default: True)
-            
-        Returns:
-            Dict: Results of patch generation including generated files and statistics
-        """
-        # Handle remote template fetching
-        if is_remote_template:
-            template_file = self._fetch_and_save_remote_template(
-                template_file, template_cache_dir
-            )
-        
-        # Analyze template
-        template_analysis = self.analyze_template(template_file)
-        attribute_patterns = template_analysis['attribute_patterns']
-        
-        if not attribute_patterns:
-            raise ValueError("No roleAttribute patterns found in template file")
-        
-        # Load team data (refresh cache first if use_cache=False)
-        data = self.load_team_data(use_cache=use_cache)
-        
-        # Determine teams to process
-        if team_keys is None:
-            teams_with_roles = self.get_teams_with_roles(data)
-            team_keys = [team['key'] for team in teams_with_roles]
-        
-        # Get all custom roles for lookup
-        all_roles = data.get('roles', [])
-        roles_lookup = {role['key']: role for role in all_roles}
-        
-        generated_patches = []
-        failed_teams = []  # Track failed teams with reasons
-        skipped_teams = []  # Track skipped teams with reasons
-        
-        for team_key in team_keys:
-            try:
-                # Find team and its roles
-                team_data = None
-                for team in data.get('teams', []):
-                    if team['key'] == team_key:
-                        team_data = team
-                        break
+                team_data = teams_lookup.get(team_key)
                 
                 if not team_data:
                     self.logger.warning(f"Team '{team_key}' not found")
@@ -782,7 +589,7 @@ class TeamManager:
                 # Extract roleAttribute values from team's roles
                 team_attribute_values = {}
                 
-                # Initialize attribute value sets
+                # Initialize attribute value sets for all discovered attributes
                 for attr_key in attribute_patterns:
                     team_attribute_values[attr_key] = set()
                 
@@ -807,18 +614,23 @@ class TeamManager:
                 
                 # Create patch file
                 patch_filepath = self._create_team_patch_file(
-                    [template_file], [template_analysis['role_key']], team_key, team_role_objects, 
-                    team_attribute_values, output_dir,
+                    template_files, template_role_keys, team_key, 
+                    team_role_objects, team_attribute_values, output_dir,
                     existing_role_attributes=existing_role_attributes
                 )
                 
-                generated_patches.append({
+                patch_result = {
                     'team_key': team_key,
                     'patch_file': patch_filepath,
                     'roles_analyzed': [role.get('key', 'unknown') for role in team_role_objects],
                     'attribute_types': list(team_attribute_values.keys()),
                     'extracted_values': {k: sorted(list(v)) for k, v in team_attribute_values.items()}
-                })
+                }
+                
+                if include_templates_used:
+                    patch_result['templates_used'] = template_role_keys
+                
+                generated_patches.append(patch_result)
                 
             except Exception as e:
                 self.logger.error(f"Failed to process team '{team_key}': {e}")
@@ -829,12 +641,153 @@ class TeamManager:
                 })
         
         return {
+            'generated_patches': generated_patches,
+            'failed_teams': failed_teams,
+            'skipped_teams': skipped_teams
+        }
+
+    def generate_team_patches_multi_template(self, template_files: List[str], team_keys: Optional[List[str]] = None, 
+                                            output_dir: str = "output/patches", is_remote_template: bool = False,
+                                            template_cache_dir: str = "output/template", use_cache: bool = True) -> Dict:
+        """
+        Generate consolidated patch files for teams based on multiple templates and their assigned roles
+        
+        Args:
+            template_files (List[str]): List of template file paths or role keys (if is_remote_template=True)
+            team_keys (List[str], optional): Specific teams to process, defaults to all teams with roles
+            output_dir (str): Directory to save patch files
+            is_remote_template (bool): Whether to fetch templates remotely by role key
+            template_cache_dir (str): Directory to save remote templates
+            use_cache (bool): Whether to use cached team data (default: True)
+            
+        Returns:
+            Dict: Results of patch generation including generated files and statistics
+        """
+        if not template_files:
+            raise ValueError("At least one template file must be provided")
+        
+        # Handle remote template fetching for all templates
+        processed_template_files = []
+        for template_file in template_files:
+            if is_remote_template:
+                processed_file = self._fetch_and_save_remote_template(template_file, template_cache_dir)
+                processed_template_files.append(processed_file)
+            else:
+                processed_template_files.append(template_file)
+        
+        # Analyze all templates and merge attribute patterns
+        all_template_analyses = []
+        all_attribute_patterns = {}
+        all_template_role_keys = []
+        
+        for template_file in processed_template_files:
+            template_analysis = self.analyze_template(template_file)
+            all_template_analyses.append(template_analysis)
+            all_template_role_keys.append(template_analysis['role_key'])
+            
+            # Merge attribute patterns from all templates
+            template_patterns = template_analysis['attribute_patterns']
+            for attr_key, patterns in template_patterns.items():
+                if attr_key not in all_attribute_patterns:
+                    all_attribute_patterns[attr_key] = []
+                # Add patterns that don't already exist
+                for pattern in patterns:
+                    if pattern not in all_attribute_patterns[attr_key]:
+                        all_attribute_patterns[attr_key].append(pattern)
+        
+        if not all_attribute_patterns:
+            raise ValueError("No roleAttribute patterns found in any template files")
+        
+        # Load team data
+        data = self.load_team_data(use_cache=use_cache)
+        
+        # Determine teams to process
+        if team_keys is None:
+            teams_with_roles = self.get_teams_with_roles(data)
+            team_keys = [team['key'] for team in teams_with_roles]
+        
+        # Process teams using shared method
+        processing_results = self._process_teams_for_patches(
+            data=data,
+            team_keys=team_keys,
+            attribute_patterns=all_attribute_patterns,
+            template_files=processed_template_files,
+            template_role_keys=all_template_role_keys,
+            output_dir=output_dir,
+            include_templates_used=True
+        )
+        
+        return {
+            'template_analyses': all_template_analyses,
+            'templates_processed': len(template_files),
+            'teams_processed': len(team_keys),
+            'patches_generated': len(processing_results['generated_patches']),
+            'failed_teams': processing_results['failed_teams'],
+            'skipped_teams': processing_results['skipped_teams'],
+            'generated_patches': processing_results['generated_patches'],
+            'output_directory': output_dir,
+            'remote_template_used': is_remote_template,
+            'template_files_used': processed_template_files,
+            'template_cache_directory': template_cache_dir if is_remote_template else None,
+            'combined_attribute_patterns': all_attribute_patterns
+        }
+
+    def generate_team_patches(self, template_file: str, team_keys: Optional[List[str]] = None, 
+                             output_dir: str = "output/patches", is_remote_template: bool = False,
+                             template_cache_dir: str = "output/template", use_cache: bool = True) -> Dict:
+        """
+        Generate patch files for teams based on a template and their assigned roles
+        
+        Args:
+            template_file (str): Path to the template role file or role key (if is_remote_template=True)
+            team_keys (List[str], optional): Specific teams to process, defaults to all teams with roles
+            output_dir (str): Directory to save patch files
+            is_remote_template (bool): Whether to fetch template remotely by role key
+            template_cache_dir (str): Directory to save remote templates
+            use_cache (bool): Whether to use cached team data (default: True)
+            
+        Returns:
+            Dict: Results of patch generation including generated files and statistics
+        """
+        # Handle remote template fetching
+        if is_remote_template:
+            template_file = self._fetch_and_save_remote_template(
+                template_file, template_cache_dir
+            )
+        
+        # Analyze template
+        template_analysis = self.analyze_template(template_file)
+        attribute_patterns = template_analysis['attribute_patterns']
+        
+        if not attribute_patterns:
+            raise ValueError("No roleAttribute patterns found in template file")
+        
+        # Load team data
+        data = self.load_team_data(use_cache=use_cache)
+        
+        # Determine teams to process
+        if team_keys is None:
+            teams_with_roles = self.get_teams_with_roles(data)
+            team_keys = [team['key'] for team in teams_with_roles]
+        
+        # Process teams using shared method
+        processing_results = self._process_teams_for_patches(
+            data=data,
+            team_keys=team_keys,
+            attribute_patterns=attribute_patterns,
+            template_files=[template_file],
+            template_role_keys=[template_analysis['role_key']],
+            output_dir=output_dir,
+            include_templates_used=False
+        )
+        
+        return {
             'template_analysis': template_analysis,
             'teams_processed': len(team_keys),
-            'patches_generated': len(generated_patches),
-            'failed_teams': failed_teams,
-            'skipped_teams': skipped_teams,
-            'generated_patches': generated_patches,
+            'patches_generated': len(processing_results['generated_patches']),
+            'failed_teams': processing_results['failed_teams'],
+            'skipped_teams': processing_results['skipped_teams'],
+            'generated_patches': processing_results['generated_patches'],
             'output_directory': output_dir,
             'remote_template_used': is_remote_template,
             'template_file_used': template_file,
@@ -1079,6 +1032,12 @@ class TeamManager:
                     'patch_filename': patch_info['filename']
                 })
                 self.logger.error(f"Error applying patch for team '{team_key}' from {patch_info['filename']}: {e}")
+        
+        # Invalidate cache if any patches were successfully applied
+        # This ensures subsequent operations (like migration report) get fresh data
+        if results['patches_applied']:
+            self.logger.info(f"Invalidating cache after {len(results['patches_applied'])} successful patch application(s)")
+            self.api_client.purge_eval_cache()
         
         return results
 
